@@ -3,7 +3,7 @@ package ru.mt;
 /**
  * Статус резервирования денег на счете
  */
-public enum AccountReservationStatus {
+public enum ReservationStatus {
     /**
      * Резервирование создано
      */

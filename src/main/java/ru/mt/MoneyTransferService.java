@@ -7,6 +7,8 @@ import java.util.Set;
 @AllArgsConstructor
 public class MoneyTransferService {
     private final AccountService accountService;
+    private final TransactionProcessor transactionProcessor;
+
 
     public Set<String> getAccounts() {
         return accountService.getAccounts();
@@ -46,27 +48,19 @@ public class MoneyTransferService {
      * @param accountIdFrom
      * @param accountIdTo
      * @param amount
-     * @return ИД транзакции (timeUUID!), которая была создана для перевода денег
+     * @return ИД транзакции, которая была создана для перевода денег
      */
     public String transferMoneyAsync(String accountIdFrom, String accountIdTo, double amount) {
         /*
-        - публикует запрос в Очередь для TransactionProcessor-а, которая:
+        - публикует новый запрос в Очередь для TransactionProcessor-а, которая:
           - партицианируется по ИД запроса
-          - разгребается "Обработчиком очереди запросов"
-          - обработчиков может быть несколько, но каждый обрабатывает свой диапазон запросов,
+          - обработчиков (TransactionProcessor-ов) может быть несколько, но каждый обрабатывает свой диапазон запросов,
             т.е. запрос с одним и тем же ИД придет в этот же обработчик
-        - если выполнять не надо синхронно, то возвращает ИД запроса и статус = CREATED
-        - иначе,
          */
-        return null;
+        return transactionProcessor.registerNewTransaction(accountIdFrom, accountIdTo, amount);
     }
 
     public TransactionStatus getTransactionStatus(String transactionId) {
-        /*
-        - найти запись: select from transfer_query where id = ИД запроса and макс. дата
-        - если нашли, то вернуть ее статус
-        - если не нашли, то вернуть статус CREATED
-         */
-        return TransactionStatus.CREATED;
+        return transactionProcessor.getTransactionStatus(transactionId);
     }
 }

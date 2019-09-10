@@ -1,6 +1,8 @@
 package ru.mt;
 
 import lombok.AllArgsConstructor;
+import lombok.Cleanup;
+import lombok.NonNull;
 
 import java.util.Set;
 
@@ -15,11 +17,19 @@ public class MoneyTransferService {
     }
 
     public String createNewAccount() {
-        return accountService.createNewAccount();
+        return accountService.createNewAccount().getId();
     }
 
     public double getAccountBalance(String accountId) {
         return accountService.getAccountBalance(accountId);
+    }
+
+    public void putMoneyIntoAccount(String accountId, double amount) {
+        accountService.creditTheAccount(accountId, amount);
+    }
+
+    public void withdrawMoneyFromAccount(String accountId, double amount) {
+        accountService.debitTheAccount(accountId, amount);
     }
 
     /**

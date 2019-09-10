@@ -1,15 +1,20 @@
 package ru.mt.domain;
 
-import lombok.Builder;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 
-@Builder
+@RequiredArgsConstructor
 public class Account {
     /**
      * Идентификатор счета
      */
-    String id;
+    @Getter
+    private final String id;
     /**
      * Сумма денег на счете, т.е. его текущий баланс
      */
+    @Getter
+    @Setter
     double amount;
 }

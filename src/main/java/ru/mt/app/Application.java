@@ -1,4 +1,4 @@
-package ru.mt;
+package ru.mt.app;
 
 import java.io.IOException;
 

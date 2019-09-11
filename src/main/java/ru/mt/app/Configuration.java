@@ -12,11 +12,23 @@ public class Configuration {
     private static Map<Class, Object> beans = new HashMap<>();
 
     static {
+        initBeans();
+    }
+
+    private static void initBeans() {
         // the order of beans initialization should correspond to dependencies between the beans:
         // repositories
         beans.put(AccountRepository.class, new InMemoryAccountRepository());
         // services
         beans.put(AccountService.class, new AccountService());
+    }
+
+    /**
+     * For testing purposes
+     */
+    public static void reset() {
+        beans.clear();
+        initBeans();
     }
 
     @SuppressWarnings("unchecked")

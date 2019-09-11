@@ -1,8 +1,6 @@
 package ru.mt;
 
 import lombok.AllArgsConstructor;
-import lombok.Cleanup;
-import lombok.NonNull;
 
 import java.util.Set;
 
@@ -17,7 +15,7 @@ public class MoneyTransferService {
     }
 
     public String createNewAccount() {
-        return accountService.createNewAccount().getId();
+        return accountService.createNewAccount();
     }
 
     public double getAccountBalance(String accountId) {
@@ -25,11 +23,15 @@ public class MoneyTransferService {
     }
 
     public void putMoneyIntoAccount(String accountId, double amount) {
-        accountService.creditTheAccount(accountId, amount);
+        var transactionId = transactionProcessor.registerPutMoneyTransaction(accountId, amount);
+        // ждем завершения транзакциии...
+        waitTransactionCompleted(transactionId);
     }
 
     public void withdrawMoneyFromAccount(String accountId, double amount) {
-        accountService.debitTheAccount(accountId, amount);
+        var transactionId = transactionProcessor.registerwithdrawMoneyTransaction(accountId, amount);
+        // ждем завершения транзакциии...
+        waitTransactionCompleted(transactionId);
     }
 
     /**
@@ -38,39 +40,27 @@ public class MoneyTransferService {
      * @param accountIdFrom ИД счета откуда
      * @param accountIdTo   ИД счета куда
      * @param amount        сумма
-     * @return результат выполнения - успешно или ошибка
      */
-    public boolean transferMoney(String accountIdFrom, String accountIdTo, double amount) {
-        // еще можно добавить параметр "ИД запроса" - для клиентов, который "заикаются" из-за плохого канала
-        var transactionId = transferMoneyAsync(accountIdFrom, accountIdTo, amount);
-        /*
-        периодически выполняет:
-          - проверить статус запроса
-          - если он финальный (Готово или Ошибка), то вернуть статус
-          - иначе, ждет таймаут и на новую итерацию
-         */
-        return true;
-    }
-
-    /**
-     * перевести деньги с одного счета на другой асинхронно
-     *
-     * @param accountIdFrom
-     * @param accountIdTo
-     * @param amount
-     * @return ИД транзакции, которая была создана для перевода денег
-     */
-    public String transferMoneyAsync(String accountIdFrom, String accountIdTo, double amount) {
+    public void transferMoney(String accountIdFrom, String accountIdTo, double amount) {
         /*
         - публикует новый запрос в Очередь для TransactionProcessor-а, которая:
           - партицианируется по ИД запроса
           - обработчиков (TransactionProcessor-ов) может быть несколько, но каждый обрабатывает свой диапазон запросов,
             т.е. запрос с одним и тем же ИД придет в этот же обработчик
          */
-        return transactionProcessor.registerNewTransaction(accountIdFrom, accountIdTo, amount);
+        var transactionId = transactionProcessor.registerTransferMoneyTransaction(accountIdFrom, accountIdTo, amount);
+        /*
+        периодически выполняет:
+          - проверить статус запроса
+          - если он финальный (Готово или Ошибка), то вернуть статус
+          - иначе, ждет таймаут и на новую итерацию
+         */
+        waitTransactionCompleted(transactionId);
     }
 
-    public TransactionStatus getTransactionStatus(String transactionId) {
-        return transactionProcessor.getTransactionStatus(transactionId);
+    private void waitTransactionCompleted(String transactionId) {
+        var transactionStatus = transactionProcessor.getTransactionStatus(transactionId);
+        //todo: если не смогли, то поднять исключение
+        // добавить отдельный тип исключений для этого сервиса
     }
 }

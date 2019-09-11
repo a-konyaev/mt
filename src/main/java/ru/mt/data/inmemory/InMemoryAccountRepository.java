@@ -4,9 +4,10 @@ import ru.mt.data.AccountRepository;
 import ru.mt.domain.Account;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class InMemoryAccountRepository implements AccountRepository {
-    private Map<String, Account> accounts = new HashMap<>();
+    private Map<String, Account> accounts = new ConcurrentHashMap<>();
 
     @Override
     public Set<String> findAll() {

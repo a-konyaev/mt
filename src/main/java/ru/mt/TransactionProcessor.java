@@ -52,6 +52,14 @@ package ru.mt;
  *       - завершение обработки события - коммит в очереди для текущего запроса, переход к следующему запросу.
  */
 public class TransactionProcessor {
+    public String registerPutMoneyTransaction(String accountId, double amount) {
+        return null;
+    }
+
+    public String registerwithdrawMoneyTransaction(String accountId, double amount) {
+        return null;
+    }
+
     /**
      * Зарегистрировать новую транзакцию
      * @param accountIdFrom
@@ -59,7 +67,7 @@ public class TransactionProcessor {
      * @param amount
      * @return ИД зарегистрированной транзакции
      */
-    public String registerNewTransaction(String accountIdFrom, String accountIdTo, double amount) {
+    public String registerTransferMoneyTransaction(String accountIdFrom, String accountIdTo, double amount) {
         return null;
     }
 

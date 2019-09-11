@@ -3,7 +3,7 @@ package ru.mt;
 import lombok.NonNull;
 import ru.mt.app.Configuration;
 import ru.mt.data.AccountRepository;
-import ru.mt.domain.Account;
+import ru.mt.errors.AccountException;
 
 import java.util.Set;
 
@@ -42,7 +42,44 @@ import java.util.Set;
  * - перебалансировку AccountBalanceManager-ов в случаях, когда какие то выходят из строя, или наоборот создаются новые
  */
 public class AccountService {
-    private final AccountRepository accountRepo = Configuration.getBean(AccountRepository.class);
+    private final AccountRepository accountRepo;
+
+    public AccountService() {
+        accountRepo = Configuration.getBean(AccountRepository.class);
+        initAccountBalanceManagers();
+    }
+
+    //region Balance managers
+
+    private AccountBalanceManager accountBalanceManager;
+
+    private void initAccountBalanceManagers() {
+        // todo: пока что реализация с одним баланс-менеджером
+        accountBalanceManager = new AccountBalanceManager();
+    }
+
+
+    private AccountBalanceCallResult executeCall(AccountBalanceCall call) {
+        //todo: синхронно выполняет вызов
+
+        // проверяет, успешно ли выполнился вызов, есть ли в нем ошибка
+        var result = AccountBalanceCallResult.builder()
+                .error(new UnsupportedOperationException("not implemented"))
+                .build();
+
+        // если есть, то поднимает ее
+        if (result.hasError()) {
+            var error = result.getError();
+            throw new AccountException(
+                    call.getAccountId(),
+                    "Account balance call failed: " + error.getMessage(),
+                    error);
+        }
+
+        return result;
+    }
+
+    //endregion
 
     /**
      * Get all accounts identifiers
@@ -56,14 +93,10 @@ public class AccountService {
     /**
      * Create new account
      *
-     * @return the created account
+     * @return the created account id
      */
-    public Account createNewAccount() {
-        var account = accountRepo.createNew();
-
-        // todo: назначает AccountBalanceManager-а, который отвечает за этот счет
-
-        return account;
+    public String createNewAccount() {
+        return accountRepo.createNew().getId();
     }
 
     /**
@@ -73,34 +106,49 @@ public class AccountService {
      * @return current account balance minus all reserved amounts
      */
     public double getAccountBalance(@NonNull String accountId) {
-
-        // todo: зарегистрировать вызов к AccountBalanceManager-у, ждать результат выполнения
-        return 0;
+        var call = AccountBalanceCall.getBalance(accountId);
+        var result = executeCall(call);
+        return result.getAmount();
     }
 
     /**
      * Increase account balance by the amount
      *
-     * @param accountId the account id
-     * @param amount    amount by which the balance will be increased
+     * @param accountId     the account id
+     * @param transactionId the transaction in which the operation is performed
+     * @param amount        amount by which the balance will be increased
      */
-    public void creditTheAccount(@NonNull String accountId, double amount) {
+    public void addAmount(@NonNull String accountId, @NonNull String transactionId, double amount) {
         if (amount <= 0)
             throw new IllegalArgumentException("Amount must be positive! amount = " + amount);
 
-        // todo: зарегистрировать вызов к AccountBalanceManager-у, ждать результат выполнения
+        var call = AccountBalanceCall.addAmount(accountId, transactionId, amount);
+        executeCall(call);
     }
 
     /**
-     * Decrease account balance by the amount
+     * Reserve the amount on the account balance
      *
-     * @param accountId the account id
-     * @param amount    amount by which the balance will be decreased
+     * @param accountId     the account id
+     * @param transactionId the transaction in which the operation is performed
+     * @param amount        amount to reserve
      */
-    public void debitTheAccount(@NonNull String accountId, double amount) {
+    public void reserveAmount(@NonNull String accountId, @NonNull String transactionId, double amount) {
         if (amount <= 0)
             throw new IllegalArgumentException("Amount must be positive! amount = " + amount);
 
-        // todo: зарегистрировать вызов к AccountBalanceManager-у, ждать результат выполнения
+        var call = AccountBalanceCall.reserveAmount(accountId, transactionId, amount);
+        executeCall(call);
+    }
+
+    /**
+     * Debit the account for the amount that was early reserved
+     *
+     * @param accountId     the account id
+     * @param transactionId the transaction in which the operation is performed
+     */
+    public void debitReservedAmount(@NonNull String accountId, @NonNull String transactionId) {
+        var call = AccountBalanceCall.debitReservedAmount(accountId, transactionId);
+        executeCall(call);
     }
 }

@@ -1,4 +1,4 @@
-package ru.mt;
+package ru.mt.domain;
 
 /**
  * Статус транзакции по переводу денег

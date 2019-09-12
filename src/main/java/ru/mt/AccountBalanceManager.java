@@ -1,10 +1,16 @@
 package ru.mt;
 
+import lombok.extern.log4j.Log4j2;
+import ru.mt.app.Component;
+import ru.mt.app.Configuration;
+import ru.mt.data.AccountBalanceCallRepository;
+import ru.mt.domain.ReservationStatus;
+
+import java.util.UUID;
+
 /*
   Отвечает за управление балансом своей пачки счетов, т.е. только этот AccountBalanceManager имеет доступ,
   причем синхронный, к счетам, за который отвечает.
-  
-  Для балансировки, можно поднять несколько AccountBalanceManager-ов.
 
   Все вызовы обрабатывает через запросы, которые добавляются в табл. account_balance_call.
   При этом обрабатывает только те запросы, которые относятся к его пачке счетов.
@@ -31,7 +37,39 @@ package ru.mt;
       - сумма резервирования
       - статус - см. ReservationStatus
  */
-public class AccountBalanceManager {
+@Log4j2
+public class AccountBalanceManager
+        extends Component {
+
+    private final AccountBalanceCallRepository balanceCallRepo;
+    private final Thread callProcessingThread;
+
+    public AccountBalanceManager() {
+        balanceCallRepo = Configuration.getComponent(AccountBalanceCallRepository.class);
+
+        callProcessingThread = new Thread(this::processCalls,"abm-" + UUID.randomUUID().hashCode());
+        callProcessingThread.start();
+    }
+
+    @Override
+    public void destroy() {
+        if (callProcessingThread != null) {
+            callProcessingThread.interrupt();
+            try {
+                callProcessingThread.join(1000);
+            } catch (InterruptedException e) {
+                log.error("Error while interruption callProcessingThread", e);
+            }
+        }
+    }
+
+    private void processCalls() {
+        while (!Thread.interrupted()) {
+            //todo
+        }
+    }
+
+    //region operation with account balance
 
     /**
      * получить баланс счета
@@ -39,7 +77,7 @@ public class AccountBalanceManager {
      * @param accountId
      * @return доступная сумма на балансе с учетом всех зарезервированных средств
      */
-    public double getBalance(String accountId) {
+    private double getBalance(String accountId) {
         /*
         - сумма зарезервированных = сумму денег для всех записей в account_balance_reverved с заданным ИД счета, у которых статус ОК
         - доступная сумма = <значение баланса из табл. account> - <сумма зарезервированных>
@@ -55,7 +93,7 @@ public class AccountBalanceManager {
      * @param amount        сумма денег
      * @return статус резервирования
      */
-    public ReservationStatus reserveAmount(String accountId, String transactionId, double amount) {
+    private ReservationStatus reserveAmount(String accountId, String transactionId, double amount) {
         /*
         - (*) если время ИД транзакции больше максимального (помним, что transactionId - это timeUUID), то возвращаем ошибку.
             это нужно для оптимизации работы с таблицей, чтобы не перелопачивать все записи.
@@ -78,7 +116,7 @@ public class AccountBalanceManager {
      * @param transactionId
      * @return статус OK/ERROR
      */
-    public boolean debitReservedAmount(String accountId, String transactionId) {
+    private boolean debitReservedAmount(String accountId, String transactionId) {
         /*
         - если статус резервирования с заданным ИД != OK, то возвращаем ошибку
         - иначе (статус == OK), в одной транзакции в БД:
@@ -95,7 +133,7 @@ public class AccountBalanceManager {
      * @param transactionId
      * @return статус OK/ERROR
      */
-    public boolean cancelReservedAmount(String accountId, String transactionId) {
+    private boolean cancelReservedAmount(String accountId, String transactionId) {
         /*
         - если статус резервирования с заданным ИД != OK, то возвращаем ошибку
         - иначе - устанавливаем статус резервирования = CANCELED
@@ -111,7 +149,7 @@ public class AccountBalanceManager {
      * @param amount
      * @return статус OK/ERROR
      */
-    public boolean addAmount(String accountId, String transactionId, double amount) {
+    private boolean addAmount(String accountId, String transactionId, double amount) {
         /*
         - увеличиваем баланс счета в табл. account
         - (*) если реализовать функцию блокировки счета, то можно вернуть ошибку.
@@ -119,4 +157,5 @@ public class AccountBalanceManager {
         return true;
     }
 
+    //endregion
 }

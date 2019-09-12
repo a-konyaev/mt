@@ -1,4 +1,4 @@
-package ru.mt;
+package ru.mt.domain;
 
 public enum AccountBalanceCallType {
     GET_BALANCE,

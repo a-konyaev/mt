@@ -1,23 +1,29 @@
-package ru.mt;
+package ru.mt.domain;
 
 import lombok.Getter;
+import lombok.ToString;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
+@ToString
 public class AccountBalanceCall {
-    private static final String EMPTY_TRANSACTION_ID = "";
-
-    //todo: добавить уникальный ИД запроса, чтобы например, его же прописывать в ответ?
+    private final String id = UUID.randomUUID().toString();
+    private final LocalDateTime time = LocalDateTime.now();
 
     private final AccountBalanceCallType callType;
     private final String accountId;
     private final String transactionId;
-    private final double amount;
+    private final Double amount;
+
+    //region constructors
 
     private AccountBalanceCall(
             AccountBalanceCallType callType,
             String accountId,
             String transactionId,
-            double amount) {
+            Double amount) {
         this.callType = callType;
         this.accountId = accountId;
         this.transactionId = transactionId;
@@ -28,8 +34,8 @@ public class AccountBalanceCall {
         return new AccountBalanceCall(
                 AccountBalanceCallType.GET_BALANCE,
                 accountId,
-                EMPTY_TRANSACTION_ID,
-                0);
+                null,
+                null);
     }
 
     public static AccountBalanceCall reserveAmount(String accountId, String transactionId, double amount) {
@@ -45,7 +51,7 @@ public class AccountBalanceCall {
                 AccountBalanceCallType.DEBIT_RESERVED_AMOUNT,
                 accountId,
                 transactionId,
-                0);
+                null);
     }
 
     public static AccountBalanceCall cancelReservedAmount(String accountId, String transactionId) {
@@ -53,7 +59,7 @@ public class AccountBalanceCall {
                 AccountBalanceCallType.CANCEL_RESERVED_AMOUNT,
                 accountId,
                 transactionId,
-                0);
+                null);
     }
 
     public static AccountBalanceCall addAmount(String accountId, String transactionId, double amount) {
@@ -63,4 +69,6 @@ public class AccountBalanceCall {
                 transactionId,
                 amount);
     }
+
+    //endregion
 }

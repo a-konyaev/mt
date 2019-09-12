@@ -6,7 +6,7 @@ import lombok.Getter;
 public class AccountException extends RuntimeException {
     private final String accountId;
 
-    public AccountException(String accountId) {
+    AccountException(String accountId) {
         super();
         this.accountId = accountId;
     }

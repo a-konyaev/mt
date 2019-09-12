@@ -1,14 +1,20 @@
 package ru.mt;
 
-import lombok.AllArgsConstructor;
+import ru.mt.app.Component;
+import ru.mt.app.Configuration;
 
 import java.util.Set;
 
-@AllArgsConstructor
-public class MoneyTransferService {
+public class MoneyTransferService
+        extends Component {
+
     private final AccountService accountService;
     private final TransactionProcessor transactionProcessor;
 
+    public MoneyTransferService() {
+        accountService = Configuration.getComponent(AccountService.class);
+        transactionProcessor = Configuration.getComponent(TransactionProcessor.class);
+    }
 
     public Set<String> getAccounts() {
         return accountService.getAccounts();
@@ -24,13 +30,11 @@ public class MoneyTransferService {
 
     public void putMoneyIntoAccount(String accountId, double amount) {
         var transactionId = transactionProcessor.registerPutMoneyTransaction(accountId, amount);
-        // ждем завершения транзакциии...
         waitTransactionCompleted(transactionId);
     }
 
     public void withdrawMoneyFromAccount(String accountId, double amount) {
-        var transactionId = transactionProcessor.registerwithdrawMoneyTransaction(accountId, amount);
-        // ждем завершения транзакциии...
+        var transactionId = transactionProcessor.registerWithdrawMoneyTransaction(accountId, amount);
         waitTransactionCompleted(transactionId);
     }
 
@@ -42,23 +46,17 @@ public class MoneyTransferService {
      * @param amount        сумма
      */
     public void transferMoney(String accountIdFrom, String accountIdTo, double amount) {
-        /*
-        - публикует новый запрос в Очередь для TransactionProcessor-а, которая:
-          - партицианируется по ИД запроса
-          - обработчиков (TransactionProcessor-ов) может быть несколько, но каждый обрабатывает свой диапазон запросов,
-            т.е. запрос с одним и тем же ИД придет в этот же обработчик
-         */
         var transactionId = transactionProcessor.registerTransferMoneyTransaction(accountIdFrom, accountIdTo, amount);
-        /*
+        waitTransactionCompleted(transactionId);
+    }
+
+    private void waitTransactionCompleted(String transactionId) {
+                /*
         периодически выполняет:
           - проверить статус запроса
           - если он финальный (Готово или Ошибка), то вернуть статус
           - иначе, ждет таймаут и на новую итерацию
          */
-        waitTransactionCompleted(transactionId);
-    }
-
-    private void waitTransactionCompleted(String transactionId) {
         var transactionStatus = transactionProcessor.getTransactionStatus(transactionId);
         //todo: если не смогли, то поднять исключение
         // добавить отдельный тип исключений для этого сервиса

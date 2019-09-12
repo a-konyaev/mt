@@ -6,7 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.mt.app.Configuration;
 import ru.mt.errors.AccountNotExistException;
-import ru.mt.errors.InsufficientBalanceAccountException;
 
 import java.util.UUID;
 
@@ -15,7 +14,7 @@ class AccountServiceTest {
 
     @BeforeEach
     void setUp() {
-        accountService = Configuration.getBean(AccountService.class);
+        accountService = Configuration.getComponent(AccountService.class);
     }
 
     @AfterEach

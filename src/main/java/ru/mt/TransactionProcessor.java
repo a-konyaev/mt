@@ -1,5 +1,8 @@
 package ru.mt;
 
+import ru.mt.app.Component;
+import ru.mt.domain.TransactionStatus;
+
 /**
  * Обработчик транзакций по переводу денег.
  * фактически реализует бизнес-логику перевода денег.
@@ -51,12 +54,14 @@ package ru.mt;
  *     ERROR (завершено с ошибкой, требуется тех. поддержка):
  *       - завершение обработки события - коммит в очереди для текущего запроса, переход к следующему запросу.
  */
-public class TransactionProcessor {
+public class TransactionProcessor
+        extends Component {
+
     public String registerPutMoneyTransaction(String accountId, double amount) {
         return null;
     }
 
-    public String registerwithdrawMoneyTransaction(String accountId, double amount) {
+    public String registerWithdrawMoneyTransaction(String accountId, double amount) {
         return null;
     }
 
@@ -68,6 +73,12 @@ public class TransactionProcessor {
      * @return ИД зарегистрированной транзакции
      */
     public String registerTransferMoneyTransaction(String accountIdFrom, String accountIdTo, double amount) {
+        /*
+        - публикует новый запрос в Очередь для TransactionProcessor-а, которая:
+          - партицианируется по ИД запроса
+          - обработчиков (TransactionProcessor-ов) может быть несколько, но каждый обрабатывает свой диапазон запросов,
+            т.е. запрос с одним и тем же ИД придет в этот же обработчик
+         */
         return null;
     }
 

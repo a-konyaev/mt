@@ -1,12 +1,16 @@
 package ru.mt.data.inmemory;
 
+import ru.mt.app.Component;
 import ru.mt.data.AccountRepository;
 import ru.mt.domain.Account;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class InMemoryAccountRepository implements AccountRepository {
+public class InMemoryAccountRepository
+        extends Component
+        implements AccountRepository {
+
     private Map<String, Account> accounts = new ConcurrentHashMap<>();
 
     @Override

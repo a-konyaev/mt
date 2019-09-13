@@ -4,8 +4,11 @@ import lombok.extern.log4j.Log4j2;
 import ru.mt.app.Component;
 import ru.mt.app.Configuration;
 import ru.mt.data.AccountBalanceCallRepository;
+import ru.mt.domain.AccountBalanceCall;
+import ru.mt.domain.AccountBalanceCallResult;
 import ru.mt.domain.ReservationStatus;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /*
@@ -41,13 +44,15 @@ import java.util.UUID;
 public class AccountBalanceManager
         extends Component {
 
+    private final int shardIndex;
     private final AccountBalanceCallRepository balanceCallRepo;
     private final Thread callProcessingThread;
 
-    public AccountBalanceManager() {
+    public AccountBalanceManager(int shardIndex) {
+        this.shardIndex = shardIndex;
         balanceCallRepo = Configuration.getComponent(AccountBalanceCallRepository.class);
 
-        callProcessingThread = new Thread(this::processCalls,"abm-" + UUID.randomUUID().hashCode());
+        callProcessingThread = new Thread(this::processCalls, String.format("abm-%04d", shardIndex));
         callProcessingThread.start();
     }
 
@@ -64,8 +69,42 @@ public class AccountBalanceManager
     }
 
     private void processCalls() {
+        log.debug("starting work...");
+
         while (!Thread.interrupted()) {
-            //todo
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                break;
+            }
+
+            log.debug("getting next call...");
+            var call = balanceCallRepo.getNextCall(shardIndex);
+            if (call == null)
+                continue;
+
+            executeCall(call);
+        }
+
+        log.debug("work had interrupted");
+    }
+
+    private void executeCall(AccountBalanceCall call) {
+        log.debug("executing call: " + call);
+        var callId = call.getId();
+        var resultBuilder = AccountBalanceCallResult.builder().callId(callId);
+        try {
+            //todo:...
+
+            var result = resultBuilder.build();
+            log.debug("setting call result: " + result);
+            balanceCallRepo.setCallResult(callId, result);
+        }
+        catch (Throwable e) {
+            resultBuilder.errorMessage(e.getMessage());
+            var result = resultBuilder.build();
+            log.error("call execution failed: " + result);
+            balanceCallRepo.setCallResult(callId, result);
         }
     }
 

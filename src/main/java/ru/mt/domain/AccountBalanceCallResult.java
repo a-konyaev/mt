@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Builder
 @Getter
 public class AccountBalanceCallResult {
-    private final LocalDateTime time;
+    private final LocalDateTime time = LocalDateTime.now();
     private final String callId;
     private final Double amount;
     private final ReservationStatus reservationStatus;

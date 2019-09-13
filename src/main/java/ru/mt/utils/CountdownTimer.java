@@ -4,17 +4,17 @@ import lombok.Getter;
 
 public class CountdownTimer {
     @Getter
-    private final int timeoutSecs;
+    private final int timeoutMillis;
     private final long startTime;
-    private final long timeoutNanosecs;
+    private final long timeoutNanos;
 
-    public CountdownTimer(int timeoutSecs) {
+    public CountdownTimer(int timeoutMillis) {
         this.startTime = System.nanoTime();
-        this.timeoutSecs = timeoutSecs;
-        this.timeoutNanosecs = (long)timeoutSecs * 1_000_000_000L;
+        this.timeoutMillis = timeoutMillis;
+        this.timeoutNanos = (long)timeoutMillis * 1_000_000L;
     }
 
     public boolean isTimeOver() {
-        return (System.nanoTime() - startTime > timeoutNanosecs);
+        return (System.nanoTime() - startTime > timeoutNanos);
     }
 }

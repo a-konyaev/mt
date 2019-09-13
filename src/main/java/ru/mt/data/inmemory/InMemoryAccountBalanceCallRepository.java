@@ -13,10 +13,10 @@ public class InMemoryAccountBalanceCallRepository
         extends Component
         implements AccountBalanceCallRepository {
 
-    private Map<String, CallMapValue> callMap = new ConcurrentHashMap<>();
+    private Map<String, CallWithResult> callMap = new ConcurrentHashMap<>();
 
     @RequiredArgsConstructor
-    static class CallMapValue {
+    private static class CallWithResult {
         final AccountBalanceCall call;
         AccountBalanceCallResult result;
 
@@ -27,36 +27,42 @@ public class InMemoryAccountBalanceCallRepository
 
     @Override
     public void putNewCall(AccountBalanceCall call) {
-        callMap.put(call.getId(), new CallMapValue(call));
+        callMap.put(call.getId(), new CallWithResult(call));
     }
 
     @Override
     public AccountBalanceCallResult getCallResult(String callId) {
-        return null;
+        var callWithResult = findCall(callId);
+        return callWithResult.result;
     }
 
     /**
-     * Returns next call for account
-     * @param accountId Account id
+     * Returns next call for an account
+     * @param shardIndex The shard index that defines the batch of accounts to process
      * @return The next call or null if there is no new calls
      */
     @Override
-    public AccountBalanceCall getNextCall(String accountId) {
+    public AccountBalanceCall getNextCall(int shardIndex) {
+        //todo
         return null;
     }
 
     @Override
     public void setCallResult(String callId, AccountBalanceCallResult result) {
+        var callWithResult = findCall(callId);
+        if (callWithResult.hasResult()) {
+            throw new IllegalStateException("Call already has result: " + callId);
+        }
+
+        callWithResult.result = result;
+    }
+
+    private CallWithResult findCall(String callId) {
         var value = callMap.get(callId);
-
         if (value == null) {
-            throw new IllegalStateException("The call not found: " + callId);
+            throw new IllegalStateException("Call not found: " + callId);
         }
 
-        if (value.hasResult()) {
-            throw new IllegalStateException("The call already has result: " + callId);
-        }
-
-        value.result = result;
+        return value;
     }
 }

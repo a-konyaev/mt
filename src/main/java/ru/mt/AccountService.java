@@ -1,6 +1,7 @@
 package ru.mt;
 
 import lombok.NonNull;
+import lombok.extern.log4j.Log4j2;
 import ru.mt.app.Component;
 import ru.mt.app.Configuration;
 import ru.mt.data.AccountBalanceCallRepository;
@@ -10,6 +11,8 @@ import ru.mt.domain.AccountBalanceCallResult;
 import ru.mt.errors.AccountException;
 import ru.mt.utils.CountdownTimer;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -19,6 +22,7 @@ import java.util.Set;
  * - создание AccountBalanceManager-ов и распределение между ними счетов
  * - перебалансировку AccountBalanceManager-ов в случаях, когда какие то выходят из строя, или наоборот создаются новые
  */
+@Log4j2
 public class AccountService
         extends Component {
 
@@ -110,16 +114,15 @@ public class AccountService
 
     //region Balance managers
 
-    private AccountBalanceManager accountBalanceManager;
+    private final List<AccountBalanceManager> accountBalanceManagers = new ArrayList<>();
 
     private void initAccountBalanceManagers() {
         // todo: пока что реализация с одним баланс-менеджером
-        accountBalanceManager = new AccountBalanceManager();
+        accountBalanceManagers.add(new AccountBalanceManager(0));
     }
 
     private void destroyAccountBalanceManagers() {
-        if (accountBalanceManager != null)
-            accountBalanceManager.destroy();
+        accountBalanceManagers.forEach(AccountBalanceManager::destroy);
     }
 
     /**
@@ -129,17 +132,24 @@ public class AccountService
      * @return
      */
     private AccountBalanceCallResult executeCall(AccountBalanceCall call) {
+        log.debug("executing the call: " + call);
         balanceCallRepo.putNewCall(call);
         var result = waitForCallResult(call);
 
         if (result.hasError()) {
+            log.error("call executing failed! call: {}; error: {}", call, result.getErrorMessage());
             throw new AccountException(call.getAccountId(), "Account balance call failed: " + result.getErrorMessage());
         }
 
+        log.debug("call executing done. result: " + result);
         return result;
     }
 
+    public static final int CALL_RESULT_WAITING_TIMEOUT = 60_000;
+    public static final int CALL_RESULT_CHECKING_TIMEOUT = 1000;
+
     private AccountBalanceCallResult waitForCallResult(AccountBalanceCall call) {
+        log.debug("start waiting result for call: " + call.getId());
         /*
          * (*) можно подумать, как лучше реализовать ожидание... например, через какой то аналог корутин (Go, Kotlin) или
          * через "подписку на события", которую сделать через очередь.
@@ -147,15 +157,16 @@ public class AccountService
          * (*) можно сделать макс. время ожидание для случаев, когда на вызов долго не обрабатывается (AccountBalanceManager сломался).
          * А также сделать отдельный сервис, который проставляет результат "Ошибка" для вызовов, которые так и не были обработаны.
          */
-        CountdownTimer timer = new CountdownTimer(10);
+        CountdownTimer timer = new CountdownTimer(CALL_RESULT_WAITING_TIMEOUT);
 
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                Thread.sleep(100);
+                Thread.sleep(CALL_RESULT_CHECKING_TIMEOUT);
             } catch (InterruptedException e) {
                 break;
             }
 
+            log.debug("checking result for call: " + call.getId());
             AccountBalanceCallResult result = balanceCallRepo.getCallResult(call.getId());
             if (result != null)
                 return result;

@@ -7,6 +7,6 @@ public interface AccountBalanceCallRepository {
     void putNewCall(AccountBalanceCall call);
     AccountBalanceCallResult getCallResult(String callId);
 
-    AccountBalanceCall getNextCall(String accountId);
+    AccountBalanceCall getNextCall(int shardIndex);
     void setCallResult(String callId, AccountBalanceCallResult result);
 }

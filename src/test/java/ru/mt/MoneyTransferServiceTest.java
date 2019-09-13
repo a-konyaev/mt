@@ -1,10 +1,12 @@
 package ru.mt;
 
+import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
 
+@Log4j2
 class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
     public MoneyTransferServiceTest() {
         super(MoneyTransferService.class);

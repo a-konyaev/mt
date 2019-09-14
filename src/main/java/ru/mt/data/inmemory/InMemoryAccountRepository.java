@@ -1,28 +1,136 @@
 package ru.mt.data.inmemory;
 
+import lombok.RequiredArgsConstructor;
 import ru.mt.app.Component;
 import ru.mt.data.AccountRepository;
 import ru.mt.domain.Account;
+import ru.mt.domain.Reservation;
+import ru.mt.domain.ReservationStatus;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
-public class InMemoryAccountRepository
-        extends Component
-        implements AccountRepository {
+public class InMemoryAccountRepository extends Component implements AccountRepository {
 
-    private Map<String, Account> accounts = new ConcurrentHashMap<>();
+    private Map<String, AccountTableRow> accountTable = new ConcurrentHashMap<>();
+
+    @RequiredArgsConstructor
+    private static class AccountTableRow {
+        final Account account;
+        /**
+         * Key: transaction id
+         * Value: reservation
+         */
+        final Map<String, Reservation> reservations = new HashMap<>();
+    }
+
+    private AccountTableRow getAccountTableRow(String accountId) {
+        var row = accountTable.get(accountId);
+        if (row == null) {
+            throw new IllegalStateException("Account not found: " + accountId);
+        }
+
+        return row;
+    }
+
+    //region accounts
 
     @Override
-    public Set<String> findAll() {
+    public void saveNewAccount(Account account) {
+        var id = account.getId();
+        if (accountTable.containsKey(id)) {
+            throw new IllegalStateException("Account with the same id already exists: " + id);
+        }
+
+        var row = new AccountTableRow(account);
+        accountTable.put(id, row);
+    }
+
+    @Override
+    public Set<String> findAllAccount() {
         // makes a copy to prevent reflection of the accounts map's changes in this set of keys
-        return new HashSet<>(accounts.keySet());
+        return new HashSet<>(accountTable.keySet());
     }
 
     @Override
-    public Account createNew() {
-        var account = new Account(UUID.randomUUID().toString());
-        accounts.put(account.getId(), account);
-        return account;
+    public Account findAccount(String accountId) {
+        var row = accountTable.get(accountId);
+        return row != null ? row.account : null;
     }
+
+    @Override
+    public Account getAccount(String accountId) {
+        return getAccountTableRow(accountId).account;
+    }
+
+    //endregion
+
+    //region reservations
+
+    @Override
+    public void saveNewReservation(Reservation reservation) {
+        var row = getAccountTableRow(reservation.getAccountId());
+
+        var transactionId = reservation.getTransactionId();
+        if (row.reservations.containsKey(transactionId)) {
+            throw new IllegalStateException(
+                    "Reservation with the same transaction id already exists: " + transactionId);
+        }
+
+        row.reservations.put(transactionId, reservation);
+    }
+
+    @Override
+    public Reservation findReservation(String accountId, String transactionId) {
+        // todo: для оптимизации поиска можно использовать timeUUID в качестве transactionId
+        //  и выполнять поиск транзакций, которые не старше, чем макс. время
+        var row = getAccountTableRow(accountId);
+        return row.reservations.get(transactionId);
+    }
+
+    @Override
+    public Reservation getReservation(String accountId, String transactionId) {
+        var reservation = findReservation(accountId, transactionId);
+        if (reservation == null) {
+            throw new IllegalStateException("Reservation with transaction id not found: " + transactionId);
+        }
+
+        return reservation;
+    }
+
+    @Override
+    public Set<Reservation> getAllReservationWhereStatusOK(String accountId) {
+        var row = getAccountTableRow(accountId);
+        return row.reservations.values()
+                .stream()
+                .filter(reservation -> reservation.getStatus() == ReservationStatus.OK)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * смысл в одном методе - сделать все изменения в одной общей транзакции
+     */
+    @Override
+    public void updateAccountBalanceAndReservationStatus(
+            String accountId, String transactionId, double balance, ReservationStatus status) {
+
+        var row = getAccountTableRow(accountId);
+
+        var reservation = row.reservations.get(transactionId);
+        if (reservation == null) {
+            throw new IllegalStateException("Reservation with transaction id not found: " + transactionId);
+        }
+
+        reservation.setStatus(status);
+        row.account.setBalance(balance);
+    }
+
+    @Override
+    public void updateReservationStatus(String accountId, String transactionId, ReservationStatus status) {
+        var reservation = getReservation(accountId, transactionId);
+        reservation.setStatus(status);
+    }
+
+    //endregion
 }

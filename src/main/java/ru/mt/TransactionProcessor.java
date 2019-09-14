@@ -54,14 +54,13 @@ import ru.mt.domain.TransactionStatus;
  *     ERROR (завершено с ошибкой, требуется тех. поддержка):
  *       - завершение обработки события - коммит в очереди для текущего запроса, переход к следующему запросу.
  */
-public class TransactionProcessor
-        extends Component {
+public class TransactionProcessor extends Component {
 
-    public String registerPutMoneyTransaction(String accountId, double amount) {
+    String registerPutMoneyTransaction(String accountId, double amount) {
         return null;
     }
 
-    public String registerWithdrawMoneyTransaction(String accountId, double amount) {
+    String registerWithdrawMoneyTransaction(String accountId, double amount) {
         return null;
     }
 
@@ -72,7 +71,7 @@ public class TransactionProcessor
      * @param amount
      * @return ИД зарегистрированной транзакции
      */
-    public String registerTransferMoneyTransaction(String accountIdFrom, String accountIdTo, double amount) {
+    String registerTransferMoneyTransaction(String accountIdFrom, String accountIdTo, double amount) {
         /*
         - публикует новый запрос в Очередь для TransactionProcessor-а, которая:
           - партицианируется по ИД запроса
@@ -82,7 +81,7 @@ public class TransactionProcessor
         return null;
     }
 
-    public TransactionStatus getTransactionStatus(String transactionId) {
+    TransactionStatus getTransactionStatus(String transactionId) {
         /*
         - найти запись: select from transaction where id = ИД транзакции and макс. дата
         - если нашли, то вернуть ее статус

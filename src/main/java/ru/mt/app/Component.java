@@ -1,12 +1,20 @@
 package ru.mt.app;
 
+import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 
 @Log4j2
 public abstract class Component {
-    public void destroy() {
-       log.debug("destroying " + this.getClass().getCanonicalName());
+    @Getter
+    private volatile boolean destroying = false;
 
-        // if needed override in derived class
+    public void destroy() {
+        log.debug("destroying " + this.getClass().getCanonicalName());
+        destroying = true;
+        destroyInternal();
+    }
+
+    protected void destroyInternal() {
+        // if needed override at derived class
     }
 }

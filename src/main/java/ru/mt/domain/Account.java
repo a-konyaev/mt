@@ -4,17 +4,10 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 
+@Getter
 @RequiredArgsConstructor
 public class Account {
-    /**
-     * Идентификатор счета
-     */
-    @Getter
     private final String id;
-    /**
-     * Сумма денег на счете, т.е. его текущий баланс
-     */
-    @Getter
     @Setter
-    double amount;
+    double balance;
 }

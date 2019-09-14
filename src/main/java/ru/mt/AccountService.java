@@ -1,19 +1,20 @@
 package ru.mt;
 
-import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
 import ru.mt.app.Component;
 import ru.mt.app.Configuration;
 import ru.mt.data.AccountBalanceCallRepository;
 import ru.mt.data.AccountRepository;
+import ru.mt.domain.Account;
 import ru.mt.domain.AccountBalanceCall;
 import ru.mt.domain.AccountBalanceCallResult;
-import ru.mt.errors.AccountException;
 import ru.mt.utils.CountdownTimer;
+import ru.mt.utils.ShardUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Сервис, через который выполняются все операции со счетами.
@@ -23,22 +24,27 @@ import java.util.Set;
  * - перебалансировку AccountBalanceManager-ов в случаях, когда какие то выходят из строя, или наоборот создаются новые
  */
 @Log4j2
-public class AccountService
-        extends Component {
+public class AccountService extends Component {
 
+    private static final int SHARD_COUNT = 1;
     private final AccountRepository accountRepo;
     private final AccountBalanceCallRepository balanceCallRepo;
+    private final List<AccountBalanceManager> accountBalanceManagers = new ArrayList<>();
 
     public AccountService() {
         accountRepo = Configuration.getComponent(AccountRepository.class);
-        balanceCallRepo = Configuration.getComponent(AccountBalanceCallRepository.class);
 
-        initAccountBalanceManagers();
+        balanceCallRepo = Configuration.getComponent(AccountBalanceCallRepository.class);
+        balanceCallRepo.initShards(SHARD_COUNT);
+
+        for (int i = 0; i < SHARD_COUNT; i++) {
+            accountBalanceManagers.add(new AccountBalanceManager(i));
+        }
     }
 
     @Override
-    public void destroy() {
-        destroyAccountBalanceManagers();
+    protected void destroyInternal() {
+        accountBalanceManagers.forEach(AccountBalanceManager::destroy);
     }
 
     /**
@@ -46,8 +52,8 @@ public class AccountService
      *
      * @return set of account identifiers
      */
-    public Set<String> getAccounts() {
-        return accountRepo.findAll();
+    Set<String> getAccounts() {
+        return accountRepo.findAllAccount();
     }
 
     /**
@@ -55,18 +61,21 @@ public class AccountService
      *
      * @return the created account id
      */
-    public String createNewAccount() {
-        return accountRepo.createNew().getId();
+    String createNewAccount() {
+        var id = UUID.randomUUID().toString();
+        var account = new Account(id);
+        accountRepo.saveNewAccount(account);
+        return id;
     }
 
     /**
-     * Get available account balance
+     * Available account balance = current account balance minus all reserved amounts
      *
      * @param accountId the account id
-     * @return current account balance minus all reserved amounts
+     * @return Available account balance
      */
-    public double getAccountBalance(@NonNull String accountId) {
-        var call = AccountBalanceCall.getBalance(accountId);
+    double getAccountBalance(String accountId) {
+        var call = AccountBalanceCall.getAvailableBalance(accountId);
         var result = executeCall(call);
         return result.getAmount();
     }
@@ -78,10 +87,7 @@ public class AccountService
      * @param transactionId the transaction in which the operation is performed
      * @param amount        amount by which the balance will be increased
      */
-    public void addAmount(@NonNull String accountId, @NonNull String transactionId, double amount) {
-        if (amount <= 0)
-            throw new IllegalArgumentException("Amount must be positive! amount = " + amount);
-
+    void addAmount(String accountId, String transactionId, double amount) {
         var call = AccountBalanceCall.addAmount(accountId, transactionId, amount);
         executeCall(call);
     }
@@ -93,10 +99,7 @@ public class AccountService
      * @param transactionId the transaction in which the operation is performed
      * @param amount        amount to reserve
      */
-    public void reserveAmount(@NonNull String accountId, @NonNull String transactionId, double amount) {
-        if (amount <= 0)
-            throw new IllegalArgumentException("Amount must be positive! amount = " + amount);
-
+    void reserveAmount(String accountId, String transactionId, double amount) {
         var call = AccountBalanceCall.reserveAmount(accountId, transactionId, amount);
         executeCall(call);
     }
@@ -107,23 +110,12 @@ public class AccountService
      * @param accountId     the account id
      * @param transactionId the transaction in which the operation is performed
      */
-    public void debitReservedAmount(@NonNull String accountId, @NonNull String transactionId) {
+    void debitReservedAmount(String accountId, String transactionId) {
         var call = AccountBalanceCall.debitReservedAmount(accountId, transactionId);
         executeCall(call);
     }
 
-    //region Balance managers
-
-    private final List<AccountBalanceManager> accountBalanceManagers = new ArrayList<>();
-
-    private void initAccountBalanceManagers() {
-        // todo: пока что реализация с одним баланс-менеджером
-        accountBalanceManagers.add(new AccountBalanceManager(0));
-    }
-
-    private void destroyAccountBalanceManagers() {
-        accountBalanceManagers.forEach(AccountBalanceManager::destroy);
-    }
+    //region Balance calls execution
 
     /**
      * синхронно выполняет "вызов", после чего возвращает результат выполнения
@@ -133,52 +125,53 @@ public class AccountService
      */
     private AccountBalanceCallResult executeCall(AccountBalanceCall call) {
         log.debug("executing the call: " + call);
-        balanceCallRepo.putNewCall(call);
+        putNewCall(call);
         var result = waitForCallResult(call);
 
         if (result.hasError()) {
+            //todo: а как же логические ошибки?
             log.error("call executing failed! call: {}; error: {}", call, result.getErrorMessage());
-            throw new AccountException(call.getAccountId(), "Account balance call failed: " + result.getErrorMessage());
+            throw new RuntimeException("Account balance call failed: " + result.getErrorMessage());
         }
 
         log.debug("call executing done. result: " + result);
         return result;
     }
 
-    public static final int CALL_RESULT_WAITING_TIMEOUT = 60_000;
-    public static final int CALL_RESULT_CHECKING_TIMEOUT = 1000;
+    private void putNewCall(AccountBalanceCall call) {
+        var shardIndex = ShardUtils.getShardIndexById(call.getAccountId(), SHARD_COUNT);
+        balanceCallRepo.putNewCall(call, shardIndex);
+    }
+
+    private static final int CALL_RESULT_WAITING_TIMEOUT = 60_000;
 
     private AccountBalanceCallResult waitForCallResult(AccountBalanceCall call) {
-        log.debug("start waiting result for call: " + call.getId());
-        /*
-         * (*) можно подумать, как лучше реализовать ожидание... например, через какой то аналог корутин (Go, Kotlin) или
-         * через "подписку на события", которую сделать через очередь.
-         * Или попробовать асинхронную библиотеку Quasar!
-         * (*) можно сделать макс. время ожидание для случаев, когда на вызов долго не обрабатывается (AccountBalanceManager сломался).
-         * А также сделать отдельный сервис, который проставляет результат "Ошибка" для вызовов, которые так и не были обработаны.
-         */
+        // todo: подумать, как лучше реализовать ожидание, например, через аналог корутин (см. Quasar)
+        // todo: сделать сервис, который проставляет результат "Ошибка" для вызовов, которые так и не были обработаны.
+
+        var callId = call.getId();
+        log.debug("start waiting result for call: " + callId);
+
         CountdownTimer timer = new CountdownTimer(CALL_RESULT_WAITING_TIMEOUT);
 
-        while (!Thread.currentThread().isInterrupted()) {
+        while (!Thread.currentThread().isInterrupted() && !isDestroying()) {
+            log.debug("checking result for call: " + callId);
+
             try {
-                Thread.sleep(CALL_RESULT_CHECKING_TIMEOUT);
+                var result = balanceCallRepo.getCallResult(callId, 1000);
+                if (result != null)
+                    return result;
+
             } catch (InterruptedException e) {
                 break;
             }
 
-            log.debug("checking result for call: " + call.getId());
-            AccountBalanceCallResult result = balanceCallRepo.getCallResult(call.getId());
-            if (result != null)
-                return result;
-
             if (timer.isTimeOver()) {
-                throw new AccountException(
-                        call.getAccountId(),
-                        "Call result not received in an appropriate time: " + call);
+                throw new RuntimeException("Call result not received in an appropriate time: " + call);
             }
         }
 
-        throw new AccountException(call.getAccountId(), "Waiting for call result was interrupted: " + call);
+        throw new RuntimeException("Waiting for call result was interrupted: " + call);
     }
 
     //endregion

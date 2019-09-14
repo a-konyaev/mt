@@ -5,9 +5,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.mt.app.Configuration;
-import ru.mt.errors.AccountNotExistException;
-
-import java.util.UUID;
 
 class AccountServiceTest {
     private AccountService accountService;
@@ -36,19 +33,23 @@ class AccountServiceTest {
     }
 
     @Test
-    void getNonexistentAccount() {
-        var randomId = UUID.randomUUID().toString();
-        var exception = Assertions.assertThrows(
-                AccountNotExistException.class,
-                () -> accountService.getAccountBalance(randomId));
-        Assertions.assertEquals(randomId, exception.getAccountId());
+    void getBalanceForNewlyCreatedAccount() {
+        var accountId = accountService.createNewAccount();
+        for (int i = 0; i < 100; i++) {
+            var balance = accountService.getAccountBalance(accountId);
+            Assertions.assertEquals(0, balance);
+        }
     }
 
     @Test
-    void getBalanceForNewlyCreatedAccount() {
-        var accountId = accountService.createNewAccount();
-        var balance = accountService.getAccountBalance(accountId);
-        Assertions.assertEquals(0, balance);
+    void qq() {
+        // todo: проверить, как запросы баланса из 2-х разных тредов отработают
+        // в части ожидания и получения результата
+
+
+        //todo: проверить, что при кол-ве шард > 1:
+        // 1) один и тот же аккаунт обрабатывается одним и тем же аккайнт-манагером
+        // 2) а аккаунты из разных шард - разными
     }
 
 //    @Test

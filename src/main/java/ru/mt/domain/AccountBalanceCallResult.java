@@ -2,15 +2,16 @@ package ru.mt.domain;
 
 import lombok.Builder;
 import lombok.Getter;
-
-import java.time.LocalDateTime;
+import lombok.ToString;
+import ru.mt.utils.TimeUtils;
 
 @Builder
 @Getter
+@ToString
 public class AccountBalanceCallResult {
-    private final LocalDateTime time = LocalDateTime.now();
+    private final long ts = TimeUtils.getTimestamp();
     private final String callId;
-    private final Double amount;
+    private final double amount;
     private final ReservationStatus reservationStatus;
     private final String errorMessage;
 

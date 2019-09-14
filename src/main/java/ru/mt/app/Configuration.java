@@ -31,6 +31,7 @@ public class Configuration {
         // repositories
         components.put(AccountRepository.class, new InMemoryAccountRepository());
         components.put(AccountBalanceCallRepository.class, new InMemoryAccountBalanceCallRepository());
+
         // services
         components.put(AccountService.class, new AccountService());
         components.put(TransactionProcessor.class, new TransactionProcessor());

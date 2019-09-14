@@ -2,6 +2,7 @@ package ru.mt.domain;
 
 import lombok.Getter;
 import lombok.ToString;
+import ru.mt.utils.TimeUtils;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -10,7 +11,7 @@ import java.util.UUID;
 @ToString
 public class AccountBalanceCall {
     private final String id = UUID.randomUUID().toString();
-    private final LocalDateTime time = LocalDateTime.now();
+    private final long ts = TimeUtils.getTimestamp();
 
     private final AccountBalanceCallType callType;
     private final String accountId;
@@ -30,9 +31,9 @@ public class AccountBalanceCall {
         this.amount = amount;
     }
 
-    public static AccountBalanceCall getBalance(String accountId) {
+    public static AccountBalanceCall getAvailableBalance(String accountId) {
         return new AccountBalanceCall(
-                AccountBalanceCallType.GET_BALANCE,
+                AccountBalanceCallType.GET_AVAILABLE_BALANCE,
                 accountId,
                 null,
                 null);

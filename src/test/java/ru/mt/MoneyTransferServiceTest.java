@@ -36,10 +36,20 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
 
     @Test
     void putMoneyIntoAccount() {
+        var accountId = service.createNewAccount();
+        service.putMoneyIntoAccount(accountId, 10);
+
+        var balance = service.getAccountBalance(accountId);
+        Assertions.assertEquals(10, balance);
     }
 
     @Test
     void withdrawMoneyFromAccount() {
+        var accountId = service.createNewAccount();
+        service.putMoneyIntoAccount(accountId, 10);
+        service.withdrawMoneyFromAccount(accountId, 7);
+        var balance = service.getAccountBalance(accountId);
+        Assertions.assertEquals(3, balance);
     }
 
     @Test

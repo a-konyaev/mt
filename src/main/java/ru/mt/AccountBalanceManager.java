@@ -4,86 +4,72 @@ import lombok.extern.log4j.Log4j2;
 import ru.mt.app.Component;
 import ru.mt.app.Configuration;
 import ru.mt.data.AccountBalanceCallRepository;
-import ru.mt.domain.AccountBalanceCall;
-import ru.mt.domain.AccountBalanceCallResult;
-import ru.mt.domain.ReservationStatus;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
+import ru.mt.data.AccountRepository;
+import ru.mt.domain.*;
 
 /*
-  Отвечает за управление балансом своей пачки счетов, т.е. только этот AccountBalanceManager имеет доступ,
-  причем синхронный, к счетам, за который отвечает.
-
-  Все вызовы обрабатывает через запросы, которые добавляются в табл. account_balance_call.
-  При этом обрабатывает только те запросы, которые относятся к его пачке счетов.
-
-  Алгоритм получения новых запросов:
-    (*) можно сделать очередь, в которую тот, кто создает новые запросы, будет публиковать событие с ИД запроса,
-    а AccountBalanceManager-ы слушают эту очередь, и аналогично через очередь нотифицируют о том, что запрос обработан.
-
-    - периодически получает из БД запросы для его пачки счетов, которые еще не обработаны
-        и упорядоченные по возрастанию времени (т.е. первыми идут самые старые):
-      select from account_balance_call
-      where <ИД счета> in (пачка счетов данного AccountBalanceManager) and <результат выполнения> is null
-      order by timestamp desc
-    - последовательно обрабатывает запросы, причем внутри одной БД-транзакции с проставлением статуса запроса.
-
-  работает с таблицами в БД:
-    - account - хранит текущий баланс счета (см. ru.mt.domain.Account), колонки:
-      - ИД счета (PK)
-      - сумма
-    - account_balance_reverved - записи о резервировании средств на счете, колонки:
-      - ИД счета (PK)
-      - ИД транзакции (которая стала причиной резервирования)
-      - timastamp (? нужно ли)
-      - сумма резервирования
-      - статус - см. ReservationStatus
+  Отвечает за управление балансом своей пачки счетов,
+  т.е. только этот AccountBalanceManager имеет доступ, причем синхронный, к счетам, за который отвечает.
  */
 @Log4j2
-public class AccountBalanceManager
-        extends Component {
+public class AccountBalanceManager extends Component {
 
     private final int shardIndex;
     private final AccountBalanceCallRepository balanceCallRepo;
-    private final Thread callProcessingThread;
+    private final AccountRepository accountRepo;
 
-    public AccountBalanceManager(int shardIndex) {
+    AccountBalanceManager(int shardIndex) {
         this.shardIndex = shardIndex;
         balanceCallRepo = Configuration.getComponent(AccountBalanceCallRepository.class);
+        accountRepo = Configuration.getComponent(AccountRepository.class);
 
+        startCallProcessing();
+    }
+
+    @Override
+    protected void destroyInternal() {
+        stopCallProcessing();
+    }
+
+    //region Call processing
+
+    private Thread callProcessingThread;
+
+    private void startCallProcessing() {
         callProcessingThread = new Thread(this::processCalls, String.format("abm-%04d", shardIndex));
         callProcessingThread.start();
     }
 
-    @Override
-    public void destroy() {
-        if (callProcessingThread != null) {
-            callProcessingThread.interrupt();
-            try {
-                callProcessingThread.join(1000);
-            } catch (InterruptedException e) {
-                log.error("Error while interruption callProcessingThread", e);
-            }
+    private void stopCallProcessing() {
+        if (callProcessingThread == null)
+            return;
+
+        callProcessingThread.interrupt();
+        try {
+            // wait 1 second until the thread finishes its work
+            callProcessingThread.join(1000);
+        } catch (InterruptedException e) {
+            log.error("Error while interruption callProcessingThread", e);
         }
     }
 
     private void processCalls() {
         log.debug("starting work...");
 
-        while (!Thread.interrupted()) {
+        while (!Thread.currentThread().isInterrupted() && !isDestroying()) {
+            log.debug("getting next call...");
+
+            AccountBalanceCall call;
             try {
-                Thread.sleep(1000);
+                // wait 1 second for next call
+                call = balanceCallRepo.getNextCall(shardIndex, 1000);
             } catch (InterruptedException e) {
                 break;
             }
 
-            log.debug("getting next call...");
-            var call = balanceCallRepo.getNextCall(shardIndex);
-            if (call == null)
-                continue;
-
-            executeCall(call);
+            if (call != null) {
+                executeCall(call);
+            }
         }
 
         log.debug("work had interrupted");
@@ -91,37 +77,66 @@ public class AccountBalanceManager
 
     private void executeCall(AccountBalanceCall call) {
         log.debug("executing call: " + call);
-        var callId = call.getId();
-        var resultBuilder = AccountBalanceCallResult.builder().callId(callId);
-        try {
-            //todo:...
+        var resultBuilder = AccountBalanceCallResult.builder().callId(call.getId());
 
-            var result = resultBuilder.build();
-            log.debug("setting call result: " + result);
-            balanceCallRepo.setCallResult(callId, result);
+        try {
+            switch (call.getCallType()) {
+                case GET_AVAILABLE_BALANCE:
+                    var balance = getAvailableBalance(call.getAccountId());
+                    resultBuilder.amount(balance);
+                    break;
+
+                case RESERVE_AMOUNT:
+                    var status = reserveAmount(call.getAccountId(), call.getTransactionId(), call.getAmount());
+                    resultBuilder.reservationStatus(status);
+                    break;
+
+                case DEBIT_RESERVED_AMOUNT:
+                    debitReservedAmount(call.getAccountId(), call.getTransactionId());
+                    break;
+
+                case CANCEL_RESERVED_AMOUNT:
+                    cancelReservedAmount(call.getAccountId(), call.getTransactionId());
+                    break;
+
+                case ADD_AMOUNT:
+                    addAmount(call.getAccountId(), call.getTransactionId(), call.getAmount());
+                    break;
+
+                default:
+                    throw new IllegalStateException("Unknown call type: " + call.getCallType());
+            }
+
+        } catch (Throwable e) {
+            var msg = String.format("Call (id = %s) execution failed: %s", call.getId(), e.getMessage());
+            resultBuilder.errorMessage(msg);
+            log.error(msg, e);
         }
-        catch (Throwable e) {
-            resultBuilder.errorMessage(e.getMessage());
-            var result = resultBuilder.build();
-            log.error("call execution failed: " + result);
-            balanceCallRepo.setCallResult(callId, result);
-        }
+
+        var result = resultBuilder.build();
+        log.debug("setting call result: " + result);
+        balanceCallRepo.setCallResult(call.getId(), result);
     }
 
-    //region operation with account balance
+    //endregion
+
+    //region Work with account balance
 
     /**
-     * получить баланс счета
+     * доступная сумма = текущий баланс - сумма зарезервированных средств
      *
-     * @param accountId
+     * @param accountId ИД счета
      * @return доступная сумма на балансе с учетом всех зарезервированных средств
      */
-    private double getBalance(String accountId) {
-        /*
-        - сумма зарезервированных = сумму денег для всех записей в account_balance_reverved с заданным ИД счета, у которых статус ОК
-        - доступная сумма = <значение баланса из табл. account> - <сумма зарезервированных>
-         */
-        return 0;
+    private double getAvailableBalance(String accountId) {
+        var balance = accountRepo.getAccount(accountId).getBalance();
+
+        var totalReserved = accountRepo.getAllReservationWhereStatusOK(accountId)
+                .stream()
+                .mapToDouble(Reservation::getAmount)
+                .sum();
+
+        return balance - totalReserved;
     }
 
     /**
@@ -133,19 +148,26 @@ public class AccountBalanceManager
      * @return статус резервирования
      */
     private ReservationStatus reserveAmount(String accountId, String transactionId, double amount) {
-        /*
-        - (*) если время ИД транзакции больше максимального (помним, что transactionId - это timeUUID), то возвращаем ошибку.
-            это нужно для оптимизации работы с таблицей, чтобы не перелопачивать все записи.
+        var reservation = accountRepo.findReservation(accountId, transactionId);
 
-        - если резервирования с таким ИД еще нет, то:
-          - получим сумму на счете с учетом всех зарезервированных денег
-          - если эта сумма >= чем сумма, кот. надо зарезервировать, то
-            - создаем новую запись в account_balance_reserved с заданной суммой резервирования и со статусом ОК
-            - возвращаем ОК
-          - иначе возвращаем DENIED (отказано, т.к. не хватает денег)
-        - если уже есть резервирование с таким ИД запроса, то возвращает его статус (OK, DEBITED или CANCELED)
-         */
-        return ReservationStatus.OK;
+        // если ранее уже резервировали, то вернем статус этого резервирования
+        if (reservation != null) {
+            return reservation.getStatus();
+        }
+
+        // получим сумму на счете с учетом всех ранее зарезервированных денег
+        var availableBalance = getAvailableBalance(accountId);
+        // если не хватает денег на счете
+        if (availableBalance < amount) {
+            return ReservationStatus.DENIED;
+        }
+
+        // создаем новое резервирование
+        var newReservation = new Reservation(accountId, transactionId, amount);
+        newReservation.setStatus(ReservationStatus.OK);
+        accountRepo.saveNewReservation(newReservation);
+
+        return newReservation.getStatus();
     }
 
     /**
@@ -153,16 +175,17 @@ public class AccountBalanceManager
      *
      * @param accountId
      * @param transactionId
-     * @return статус OK/ERROR
+     * @throws
      */
-    private boolean debitReservedAmount(String accountId, String transactionId) {
-        /*
-        - если статус резервирования с заданным ИД != OK, то возвращаем ошибку
-        - иначе (статус == OK), в одной транзакции в БД:
-          - уменьшаем баланс счета в account
-          - выставляем статус для резервирования = DEBITED
-         */
-        return true;
+    private void debitReservedAmount(String accountId, String transactionId) {
+        var reservation = accountRepo.getReservation(accountId, transactionId);
+        ensureReservationStatusOK(reservation);
+
+        var account = accountRepo.getAccount(accountId);
+        var newBalance = account.getBalance() - reservation.getAmount();
+
+        accountRepo.updateAccountBalanceAndReservationStatus(
+                accountId, transactionId, newBalance, ReservationStatus.DEBITED);
     }
 
     /**
@@ -170,14 +193,18 @@ public class AccountBalanceManager
      *
      * @param accountId
      * @param transactionId
-     * @return статус OK/ERROR
+     * @throws
      */
-    private boolean cancelReservedAmount(String accountId, String transactionId) {
-        /*
-        - если статус резервирования с заданным ИД != OK, то возвращаем ошибку
-        - иначе - устанавливаем статус резервирования = CANCELED
-         */
-        return true;
+    private void cancelReservedAmount(String accountId, String transactionId) {
+        var reservation = accountRepo.getReservation(accountId, transactionId);
+        ensureReservationStatusOK(reservation);
+        accountRepo.updateReservationStatus(accountId, transactionId, ReservationStatus.CANCELED);
+    }
+
+    private void ensureReservationStatusOK(Reservation reservation) {
+        if (reservation.getStatus() != ReservationStatus.OK) {
+            throw new IllegalStateException("Reservation status is not OK");
+        }
     }
 
     /**
@@ -188,12 +215,14 @@ public class AccountBalanceManager
      * @param amount
      * @return статус OK/ERROR
      */
-    private boolean addAmount(String accountId, String transactionId, double amount) {
+    private void addAmount(String accountId, String transactionId, double amount) {
         /*
         - увеличиваем баланс счета в табл. account
         - (*) если реализовать функцию блокировки счета, то можно вернуть ошибку.
          */
-        return true;
+        // если ошибка, то кидать исключение
+
+        //todo...
     }
 
     //endregion

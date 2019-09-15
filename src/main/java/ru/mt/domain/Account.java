@@ -9,5 +9,5 @@ import lombok.Setter;
 public class Account {
     private final String id;
     @Setter
-    double balance;
+    private double balance;
 }

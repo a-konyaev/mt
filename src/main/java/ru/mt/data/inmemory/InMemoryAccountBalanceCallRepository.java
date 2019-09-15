@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 public class InMemoryAccountBalanceCallRepository extends Component implements AccountBalanceCallRepository {
 
-    private final Map<String, AccountBalanceCallAndResult> callByIdMap = new ConcurrentHashMap<>();
+    private final Map<String, AccountBalanceCallTableRow> callTable = new ConcurrentHashMap<>();
     private LinkedBlockingQueue<AccountBalanceCall>[] callQueueArray;
 
     @Override
@@ -34,14 +34,14 @@ public class InMemoryAccountBalanceCallRepository extends Component implements A
 
     @Override
     public void putNewCall(AccountBalanceCall call, int shardIndex) {
-        callByIdMap.put(call.getId(), new AccountBalanceCallAndResult(call));
+        callTable.put(call.getId(), new AccountBalanceCallTableRow(call));
         callQueueArray[shardIndex].add(call);
     }
 
     @Override
     public AccountBalanceCallResult getCallResult(String callId, long timeoutMillis) throws InterruptedException {
-        var call = findCall(callId);
-        return call.waitForResult(timeoutMillis);
+        var row = getCallTableRow(callId);
+        return row.waitForResult(timeoutMillis);
     }
 
     /**
@@ -57,16 +57,16 @@ public class InMemoryAccountBalanceCallRepository extends Component implements A
 
     @Override
     public void setCallResult(String callId, AccountBalanceCallResult result) {
-        var call = findCall(callId);
-        call.setResult(result);
+        var row = getCallTableRow(callId);
+        row.setResult(result);
     }
 
-    private AccountBalanceCallAndResult findCall(String callId) {
-        var value = callByIdMap.get(callId);
-        if (value == null) {
+    private AccountBalanceCallTableRow getCallTableRow(String callId) {
+        var row = callTable.get(callId);
+        if (row == null) {
             throw new IllegalStateException("Call not found: " + callId);
         }
 
-        return value;
+        return row;
     }
 }

@@ -1,14 +1,15 @@
 package ru.mt.app;
 
-import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
 import ru.mt.AccountService;
 import ru.mt.MoneyTransferService;
-import ru.mt.TransactionProcessor;
 import ru.mt.data.AccountBalanceCallRepository;
 import ru.mt.data.AccountRepository;
+import ru.mt.data.TransactionRepository;
 import ru.mt.data.inmemory.InMemoryAccountBalanceCallRepository;
 import ru.mt.data.inmemory.InMemoryAccountRepository;
+import ru.mt.data.inmemory.InMemoryTransactionRepository;
+import ru.mt.utils.Assert;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,10 +32,10 @@ public class Configuration {
         // repositories
         components.put(AccountRepository.class, new InMemoryAccountRepository());
         components.put(AccountBalanceCallRepository.class, new InMemoryAccountBalanceCallRepository());
+        components.put(TransactionRepository.class, new InMemoryTransactionRepository());
 
         // services
         components.put(AccountService.class, new AccountService());
-        components.put(TransactionProcessor.class, new TransactionProcessor());
         components.put(MoneyTransferService.class, new MoneyTransferService());
 
         log.debug("Initializing components...done");
@@ -73,7 +74,9 @@ public class Configuration {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> T getComponent(@NonNull Class componentClass) throws ConfigurationException {
+    public static <T> T getComponent(Class componentClass) throws ConfigurationException {
+        Assert.notNull(componentClass, "Component class is null");
+
         var component = components.get(componentClass);
         if (component == null)
             throw new ConfigurationException("Component not found");

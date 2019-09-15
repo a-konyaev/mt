@@ -12,6 +12,7 @@ import ru.mt.utils.TimeUtils;
 @RequiredArgsConstructor
 public class Reservation {
     private final long ts = TimeUtils.getTimestamp();
+
     private final String accountId;
     private final String transactionId;
     private final double amount;

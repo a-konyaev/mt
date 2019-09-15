@@ -1,36 +1,38 @@
 package ru.mt.data.inmemory;
 
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import ru.mt.domain.AccountBalanceCall;
 import ru.mt.domain.AccountBalanceCallResult;
+import ru.mt.utils.Assert;
 
 @RequiredArgsConstructor
-class AccountBalanceCallAndResult {
-    private final Object resultSignal = new Object();
+class AccountBalanceCallTableRow {
+    private final Object signal = new Object();
     @Getter
     private final AccountBalanceCall call;
     @Getter
-    private volatile AccountBalanceCallResult result;
+    private volatile AccountBalanceCallResult result = null;
 
-    void setResult(@NonNull AccountBalanceCallResult result) {
-        synchronized (resultSignal) {
+    void setResult(AccountBalanceCallResult result) {
+        Assert.notNull(result, "AccountBalanceCallResult is null");
+        synchronized (signal) {
             if (this.result != null) {
                 throw new IllegalStateException("Call already has result: " + result);
             }
 
             this.result = result;
-            resultSignal.notifyAll();
+            signal.notifyAll();
         }
     }
 
     AccountBalanceCallResult waitForResult(long timeoutMillis) throws InterruptedException {
-        synchronized (resultSignal) {
-            if (result != null)
+        synchronized (signal) {
+            if (result != null) {
                 return result;
+            }
 
-            resultSignal.wait(timeoutMillis);
+            signal.wait(timeoutMillis);
             return result;
         }
     }

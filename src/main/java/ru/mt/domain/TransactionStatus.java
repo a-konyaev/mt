@@ -1,5 +1,7 @@
 package ru.mt.domain;
 
+import lombok.Getter;
+
 /**
  * Статус транзакции по переводу денег
  */
@@ -7,34 +9,39 @@ public enum TransactionStatus {
     /**
      * новая зарегистрированная транзакция
      */
-    CREATED,
-    /**
-     * выполнение транзакции началось
-     */
-    STARTED,
+    CREATED(false),
     /**
      * Деньги зарезервированы на счете отправителя
      */
-    RESERVED,
+    RESERVED(false),
     /**
      * Деньги добавлены на счет получателя
      */
-    ADDED,
+    ADDED(false),
     /**
      * Транзация отменяется из-за невозможности ее выполнить
      * (чтобы потом перейти в статус DENIED)
      */
-    CANCELLING,
+    CANCELLING(false),
     /**
      * Перевод денег выполнен
      */
-    DONE,
+    DONE(true),
     /**
      * в операции отказано (например, из-за недостаточной суммы денег на счете)
      */
-    DENIED,
+    DENIED(true),
     /**
      * завершено с ошибкой, требуется тех. поддержка
      */
-    ERROR
+    ERROR(true);
+
+    public static TransactionStatus INITIAL_STATUS = TransactionStatus.CREATED;
+
+    @Getter
+    private final boolean isFinal;
+
+    TransactionStatus(boolean isFinal) {
+        this.isFinal = isFinal;
+    }
 }

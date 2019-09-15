@@ -10,6 +10,7 @@ import ru.mt.utils.TimeUtils;
 @ToString
 public class AccountBalanceCallResult {
     private final long ts = TimeUtils.getTimestamp();
+
     private final String callId;
     private final double amount;
     private final ReservationStatus reservationStatus;

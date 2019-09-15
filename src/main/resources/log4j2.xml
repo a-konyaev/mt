@@ -2,12 +2,12 @@
 <Configuration status="WARN">
 
     <Properties>
-        <Property name="CONSOLE_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %c{0}:%L - %msg%n</Property>
+        <Property name="PATTERN">%d{HH:mm:ss.SSS} %-5level [%t] %c{0}.%M: %msg%n</Property>
     </Properties>
 
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="${CONSOLE_PATTERN}"/>
+            <PatternLayout pattern="${PATTERN}"/>
         </Console>
     </Appenders>
 

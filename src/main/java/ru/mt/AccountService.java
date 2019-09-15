@@ -74,10 +74,9 @@ public class AccountService extends Component {
      * @param accountId the account id
      * @return Available account balance
      */
-    double getAccountBalance(String accountId) {
+    AccountBalanceCallResult getAccountBalance(String accountId) {
         var call = AccountBalanceCall.getAvailableBalance(accountId);
-        var result = executeCall(call);
-        return result.getAmount();
+        return executeCall(call);
     }
 
     /**
@@ -87,21 +86,21 @@ public class AccountService extends Component {
      * @param transactionId the transaction in which the operation is performed
      * @param amount        amount by which the balance will be increased
      */
-    void addAmount(String accountId, String transactionId, double amount) {
+    AccountBalanceCallResult addAmount(String accountId, String transactionId, double amount) {
         var call = AccountBalanceCall.addAmount(accountId, transactionId, amount);
-        executeCall(call);
+        return executeCall(call);
     }
 
     /**
      * Reserve the amount on the account balance
-     *
-     * @param accountId     the account id
+     *  @param accountId     the account id
      * @param transactionId the transaction in which the operation is performed
      * @param amount        amount to reserve
+     * @return
      */
-    void reserveAmount(String accountId, String transactionId, double amount) {
+    AccountBalanceCallResult reserveAmount(String accountId, String transactionId, double amount) {
         var call = AccountBalanceCall.reserveAmount(accountId, transactionId, amount);
-        executeCall(call);
+        return executeCall(call);
     }
 
     /**
@@ -110,9 +109,14 @@ public class AccountService extends Component {
      * @param accountId     the account id
      * @param transactionId the transaction in which the operation is performed
      */
-    void debitReservedAmount(String accountId, String transactionId) {
+    AccountBalanceCallResult debitReservedAmount(String accountId, String transactionId) {
         var call = AccountBalanceCall.debitReservedAmount(accountId, transactionId);
-        executeCall(call);
+        return executeCall(call);
+    }
+
+    AccountBalanceCallResult cancelReservedAmount(String accountId, String transactionId) {
+        var call = AccountBalanceCall.cancelReservedAmount(accountId, transactionId);
+        return executeCall(call);
     }
 
     //region Balance calls execution
@@ -126,14 +130,7 @@ public class AccountService extends Component {
     private AccountBalanceCallResult executeCall(AccountBalanceCall call) {
         log.debug("executing the call: " + call);
         putNewCall(call);
-        var result = waitForCallResult(call);
-
-        if (result.hasError()) {
-            //todo: а как же логические ошибки?
-            log.error("call executing failed! call: {}; error: {}", call, result.getErrorMessage());
-            throw new RuntimeException("Account balance call failed: " + result.getErrorMessage());
-        }
-
+        var result = waitForCallResult(call.getId());
         log.debug("call executing done. result: " + result);
         return result;
     }
@@ -143,13 +140,14 @@ public class AccountService extends Component {
         balanceCallRepo.putNewCall(call, shardIndex);
     }
 
-    private static final int CALL_RESULT_WAITING_TIMEOUT = 60_000;
+    /**
+     * Max waiting call result timeout (30 sec)
+     */
+    private static final int CALL_RESULT_WAITING_TIMEOUT = 30_000;
 
-    private AccountBalanceCallResult waitForCallResult(AccountBalanceCall call) {
+    private AccountBalanceCallResult waitForCallResult(String callId) {
         // todo: подумать, как лучше реализовать ожидание, например, через аналог корутин (см. Quasar)
         // todo: сделать сервис, который проставляет результат "Ошибка" для вызовов, которые так и не были обработаны.
-
-        var callId = call.getId();
         log.debug("start waiting result for call: " + callId);
 
         CountdownTimer timer = new CountdownTimer(CALL_RESULT_WAITING_TIMEOUT);
@@ -159,19 +157,19 @@ public class AccountService extends Component {
 
             try {
                 var result = balanceCallRepo.getCallResult(callId, 1000);
-                if (result != null)
+                if (result != null) {
                     return result;
-
+                }
             } catch (InterruptedException e) {
                 break;
             }
 
             if (timer.isTimeOver()) {
-                throw new RuntimeException("Call result not received in an appropriate time: " + call);
+                throw new RuntimeException("Call result not received in an appropriate time: " + callId);
             }
         }
 
-        throw new RuntimeException("Waiting for call result was interrupted: " + call);
+        throw new RuntimeException("Waiting for call result was interrupted: " + callId);
     }
 
     //endregion

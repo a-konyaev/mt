@@ -6,9 +6,9 @@ import org.junit.jupiter.api.BeforeEach;
 import ru.mt.app.Configuration;
 
 @RequiredArgsConstructor
-public abstract class BaseTest<T> {
+abstract class BaseTest<T> {
     private final Class<? extends T> serviceClass;
-    protected T service;
+    T service;
 
     @BeforeEach
     void setUp() {
@@ -17,6 +17,8 @@ public abstract class BaseTest<T> {
 
     @AfterEach
     void tearDown() {
-        Configuration.reset();
+        //todo: reset лучше вызывать в конкретном тесте, если ему нужно, т.к. если вызывать его постоянно,
+        // то время выполнения всех тестов сильно увеличивается из-за того, что системе требуется ~1 сек на остановку
+        //Configuration.reset();
     }
 }

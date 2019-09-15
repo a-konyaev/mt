@@ -59,11 +59,6 @@ public class InMemoryAccountRepository extends Component implements AccountRepos
         return row != null ? row.account : null;
     }
 
-    @Override
-    public Account getAccount(String accountId) {
-        return getAccountTableRow(accountId).account;
-    }
-
     //endregion
 
     //region reservations
@@ -90,16 +85,6 @@ public class InMemoryAccountRepository extends Component implements AccountRepos
     }
 
     @Override
-    public Reservation getReservation(String accountId, String transactionId) {
-        var reservation = findReservation(accountId, transactionId);
-        if (reservation == null) {
-            throw new IllegalStateException("Reservation with transaction id not found: " + transactionId);
-        }
-
-        return reservation;
-    }
-
-    @Override
     public Set<Reservation> getAllReservationWhereStatusOK(String accountId) {
         var row = getAccountTableRow(accountId);
         return row.reservations.values()
@@ -114,22 +99,32 @@ public class InMemoryAccountRepository extends Component implements AccountRepos
     @Override
     public void updateAccountBalanceAndReservationStatus(
             String accountId, String transactionId, double balance, ReservationStatus status) {
-
         var row = getAccountTableRow(accountId);
-
-        var reservation = row.reservations.get(transactionId);
-        if (reservation == null) {
-            throw new IllegalStateException("Reservation with transaction id not found: " + transactionId);
-        }
-
+        var reservation = getReservation(row, transactionId);
         reservation.setStatus(status);
         row.account.setBalance(balance);
     }
 
     @Override
     public void updateReservationStatus(String accountId, String transactionId, ReservationStatus status) {
-        var reservation = getReservation(accountId, transactionId);
+        var row = getAccountTableRow(accountId);
+        var reservation = getReservation(row, transactionId);
         reservation.setStatus(status);
+    }
+
+    @Override
+    public void updateAccountBalance(String accountId, double balance) {
+        var row = getAccountTableRow(accountId);
+        row.account.setBalance(balance);
+    }
+
+    private Reservation getReservation(AccountTableRow row, String transactionId) {
+        var reservation = row.reservations.get(transactionId);
+        if (reservation == null) {
+            throw new IllegalStateException("Reservation not found: " + transactionId);
+        }
+
+        return reservation;
     }
 
     //endregion

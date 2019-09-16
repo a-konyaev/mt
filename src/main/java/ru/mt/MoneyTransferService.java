@@ -4,9 +4,10 @@ import lombok.extern.log4j.Log4j2;
 import ru.mt.app.Component;
 import ru.mt.app.Configuration;
 import ru.mt.data.TransactionRepository;
-import ru.mt.domain.AccountBalanceCallResult;
 import ru.mt.domain.Transaction;
 import ru.mt.domain.TransactionStatus;
+import ru.mt.errors.MoneyTransferDeniedException;
+import ru.mt.errors.MoneyTransferException;
 import ru.mt.utils.Assert;
 import ru.mt.utils.CountdownTimer;
 import ru.mt.utils.Processor;
@@ -82,7 +83,7 @@ public class MoneyTransferService extends Component {
         return result.getAmount();
     }
 
-    public void putMoneyIntoAccount(String accountId, double amount) {
+    public void putMoneyIntoAccount(String accountId, double amount) throws MoneyTransferException {
         assertAccountNotEmpty(accountId);
         assertAmountPositive(amount);
 
@@ -90,7 +91,7 @@ public class MoneyTransferService extends Component {
         waitTransactionCompleted(transactionId);
     }
 
-    public void withdrawMoneyFromAccount(String accountId, double amount) {
+    public void withdrawMoneyFromAccount(String accountId, double amount) throws MoneyTransferException {
         assertAccountNotEmpty(accountId);
         assertAmountPositive(amount);
 
@@ -98,7 +99,7 @@ public class MoneyTransferService extends Component {
         waitTransactionCompleted(transactionId);
     }
 
-    public void transferMoney(String accountIdFrom, String accountIdTo, double amount) {
+    public void transferMoney(String accountIdFrom, String accountIdTo, double amount) throws MoneyTransferException {
         assertAccountNotEmpty(accountIdFrom);
         assertAccountNotEmpty(accountIdTo);
         if (accountIdFrom.equals(accountIdTo)) {
@@ -133,17 +134,17 @@ public class MoneyTransferService extends Component {
         return transaction.getId();
     }
 
-    private void waitTransactionCompleted(String transactionId) {
+    private void waitTransactionCompleted(String transactionId) throws MoneyTransferException {
         var status = waitTransactionFinalStatus(transactionId);
         switch (status) {
             case DONE:
                 return; // it's alright
 
             case ERROR:
-                throw new RuntimeException("Transaction processing failed");
+                throw new MoneyTransferException(transactionId, "Transaction processing failed");
 
             case DENIED:
-                throw new RuntimeException("Transaction processing denied");
+                throw new MoneyTransferDeniedException(transactionId);
 
             default:
                 throw new IllegalStateException("Unexpected transaction status: " + status);
@@ -250,6 +251,7 @@ public class MoneyTransferService extends Component {
                 transaction.getAccountIdFrom(), transaction.getId(), transaction.getAmount());
 
         if (result.hasError()) {
+            //todo: если аккаунт не существует, тут нужно это понять и вернуть статус DENIED
             return TransactionStatus.ERROR;
         }
 

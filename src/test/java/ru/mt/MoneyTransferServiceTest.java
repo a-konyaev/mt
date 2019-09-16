@@ -1,10 +1,20 @@
 package ru.mt;
 
+import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import ru.mt.errors.MoneyTransferDeniedException;
+import ru.mt.errors.MoneyTransferException;
+import ru.mt.utils.RandomUtils;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Log4j2
 class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
@@ -14,23 +24,42 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
 
     @Test
     void checkWrongParameters() {
-        var accountId = "nonExistentAccountId";
+        var nonExistentAccountId = "nonExistentAccountId";
+        var existingAccountId = service.createNewAccount();
 
+        // empty account id
         Assertions.assertThrows(
                 IllegalArgumentException.class,
-                () -> service.transferMoney("", accountId,1));
+                () -> service.transferMoney("", nonExistentAccountId, 1));
         Assertions.assertThrows(
                 IllegalArgumentException.class,
-                () -> service.transferMoney(accountId, "", 1));
+                () -> service.transferMoney(nonExistentAccountId, "", 1));
+
+        // same account id
         Assertions.assertThrows(
                 IllegalArgumentException.class,
-                () -> service.putMoneyIntoAccount(accountId, 0));
+                () -> service.transferMoney(nonExistentAccountId, nonExistentAccountId, 10));
+
+        // not positive amount
         Assertions.assertThrows(
                 IllegalArgumentException.class,
-                () -> service.withdrawMoneyFromAccount(accountId, -123.45));
+                () -> service.putMoneyIntoAccount(nonExistentAccountId, 0));
         Assertions.assertThrows(
                 IllegalArgumentException.class,
-                () -> service.transferMoney(accountId, accountId, 10));
+                () -> service.withdrawMoneyFromAccount(nonExistentAccountId, -123.45));
+
+        // account does not exist
+        //todo: доработать так, чтобы получать здесь исключение "Счет не найден", а не просто "запрещено"
+        Assertions.assertThrows(
+                MoneyTransferDeniedException.class,
+                () -> service.putMoneyIntoAccount(nonExistentAccountId, 10));
+        //todo: здесь сейчас прилетает просто MoneyTransferException, нужно сделать исключение "Счет не найден"
+        Assertions.assertThrows(
+                MoneyTransferException.class,
+                () -> service.transferMoney(nonExistentAccountId, existingAccountId, 10));
+        Assertions.assertThrows(
+                MoneyTransferDeniedException.class,
+                () -> service.transferMoney(existingAccountId, nonExistentAccountId, 10));
     }
 
     @Test
@@ -62,6 +91,7 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
     }
 
     @Test
+    @SneakyThrows
     void putMoneyIntoAccount() {
         var accountId = service.createNewAccount();
 
@@ -73,6 +103,7 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
     }
 
     @Test
+    @SneakyThrows
     void withdrawMoneyFromAccount() {
         var accountId = service.createNewAccount();
         service.putMoneyIntoAccount(accountId, 10);
@@ -85,6 +116,18 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
     }
 
     @Test
+    @SneakyThrows
+    void withdrawMoneyFromAccountWhenBalanceIsLow() {
+        var accountId = service.createNewAccount();
+        service.putMoneyIntoAccount(accountId, 10);
+
+        Assertions.assertThrows(
+                MoneyTransferDeniedException.class,
+                () -> service.withdrawMoneyFromAccount(accountId, 11));
+    }
+
+    @Test
+    @SneakyThrows
     void transferMoney() {
         var a1 = service.createNewAccount();
         service.putMoneyIntoAccount(a1, 10);
@@ -96,15 +139,65 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
         Assertions.assertEquals(10, service.getAccountBalance(a2));
     }
 
-    // перевод денег, когда не хватает средств на счете
+    @Test
+    @SneakyThrows
+    void transferMoneyFromAccountWhenBalanceIsLow() {
+        var a1 = service.createNewAccount();
+        service.putMoneyIntoAccount(a1, 10);
 
-    // todo: проверить, как запросы баланса из 2-х разных тредов отработают
-    // в части ожидания и получения результата
+        var a2 = service.createNewAccount();
 
+        Assertions.assertThrows(
+                MoneyTransferDeniedException.class,
+                () -> service.transferMoney(a1, a2, 11));
+    }
+
+    @Test
+    @SneakyThrows
+    void parallelTransferMoneyFromOneAccountToAnother() {
+        final int COUNT = RandomUtils.getRandomInt(10, 100);
+        var accountFrom = service.createNewAccount();
+        service.putMoneyIntoAccount(accountFrom, COUNT + 1);
+
+        var finishedLatch = new CountDownLatch(COUNT);
+        AtomicInteger errorsCount = new AtomicInteger(0);
+
+        List<String> accountToList = new ArrayList<>(COUNT);
+
+        for (int i = 0; i < COUNT; i++) {
+            CompletableFuture.runAsync(() -> {
+                try {
+                    Thread.sleep(RandomUtils.getRandomInt(10, 100));
+                } catch (InterruptedException ignored) {
+                }
+
+                var accountTo = service.createNewAccount();
+                accountToList.add(accountTo);
+
+                try {
+                    service.transferMoney(accountFrom, accountTo, 1);
+                } catch (MoneyTransferException e) {
+                    errorsCount.incrementAndGet();
+                    log.error(e);
+                }
+                finishedLatch.countDown();
+            });
+        }
+
+        Assertions.assertTrue(
+                finishedLatch.await(300 + COUNT*10, TimeUnit.MILLISECONDS),
+                "Transfer money threads not finishedLatch on time");
+        Assertions.assertEquals(0, errorsCount.get());
+
+        Assertions.assertEquals(1, service.getAccountBalance(accountFrom));
+        accountToList.forEach(accountTo -> Assertions.assertEquals(1, service.getAccountBalance(accountTo)));
+    }
+
+    //todo: сделать эмуляцию долгой транзакции, когда какая то часть денег зарезервирована, но не списана какое то время,
+    // и в этот момент запросить баланс - увидеть, что он отражает баланс минус зарезервированная сумма.
+    // и попробовать перевести сумму равную балансу - должны получить отказ, т.к. не хватит из-за того, что часть зарезервирована
 
     //todo: проверить, что при кол-ве шард > 1:
     // 1) один и тот же аккаунт обрабатывается одним и тем же аккайнт-манагером
     // 2) а аккаунты из разных шард - разными
-
-    // несколько потоков переводят деньги с одного счета на дгурие
 }

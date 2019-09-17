@@ -2,6 +2,8 @@ package ru.mt.utils;
 
 import lombok.extern.log4j.Log4j2;
 
+import java.util.Objects;
+
 @Log4j2
 public class Processor {
     private final Action action;
@@ -13,8 +15,8 @@ public class Processor {
     }
 
     public Processor(String name, Action action) {
-        Assert.notEmpty(name, "Processor name is empty");
-        Assert.notNull(action, "Action is null");
+        Objects.requireNonNull(name, "Processor name is null");
+        Objects.requireNonNull(action, "Action is null");
 
         this.action = action;
         processingThread = new Thread(this::process, name);

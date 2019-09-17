@@ -141,9 +141,9 @@ public class AccountService extends Component {
     }
 
     /**
-     * Max waiting call result timeout (30 sec)
+     * Max waiting call result timeout (60 sec)
      */
-    private static final int CALL_RESULT_WAITING_TIMEOUT = 30_000;
+    private static final int CALL_RESULT_WAITING_TIMEOUT = 60_000;
 
     private AccountBalanceCallResult waitForCallResult(String callId) {
         // todo: подумать, как лучше реализовать ожидание, например, через аналог корутин (см. Quasar)
@@ -165,7 +165,10 @@ public class AccountService extends Component {
             }
 
             if (timer.isTimeOver()) {
-                throw new RuntimeException("Call result not received in an appropriate time: " + callId);
+                return AccountBalanceCallResult.builder()
+                        .callId(callId)
+                        .errorMessage("Call result not received in an appropriate time")
+                        .build();
             }
         }
 

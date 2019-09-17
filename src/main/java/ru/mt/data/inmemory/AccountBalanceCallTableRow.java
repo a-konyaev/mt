@@ -4,7 +4,8 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import ru.mt.domain.AccountBalanceCall;
 import ru.mt.domain.AccountBalanceCallResult;
-import ru.mt.utils.Assert;
+
+import java.util.Objects;
 
 @RequiredArgsConstructor
 class AccountBalanceCallTableRow {
@@ -15,7 +16,8 @@ class AccountBalanceCallTableRow {
     private volatile AccountBalanceCallResult result = null;
 
     void setResult(AccountBalanceCallResult result) {
-        Assert.notNull(result, "AccountBalanceCallResult is null");
+        Objects.requireNonNull(result, "AccountBalanceCallResult is null");
+
         synchronized (signal) {
             if (this.result != null) {
                 throw new IllegalStateException("Call already has result: " + result);

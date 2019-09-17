@@ -20,7 +20,6 @@ public enum TransactionStatus {
     ADDED(false),
     /**
      * Транзация отменяется из-за невозможности ее выполнить
-     * (чтобы потом перейти в статус DENIED)
      */
     CANCELLING(false),
     /**
@@ -36,10 +35,16 @@ public enum TransactionStatus {
      */
     ERROR(true);
 
-    public static TransactionStatus INITIAL_STATUS = TransactionStatus.CREATED;
-
     @Getter
     private final boolean isFinal;
+
+    @Getter
+    private String reason;
+
+    public TransactionStatus setReason(String reason) {
+        this.reason = reason;
+        return this;
+    }
 
     TransactionStatus(boolean isFinal) {
         this.isFinal = isFinal;

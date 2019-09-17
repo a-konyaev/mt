@@ -2,7 +2,7 @@ package ru.mt.app;
 
 import lombok.extern.log4j.Log4j2;
 import ru.mt.AccountService;
-import ru.mt.MoneyTransferController;
+import ru.mt.controller.MoneyTransferController;
 import ru.mt.MoneyTransferService;
 import ru.mt.data.AccountBalanceCallRepository;
 import ru.mt.data.AccountRepository;
@@ -11,11 +11,11 @@ import ru.mt.data.inmemory.InMemoryAccountBalanceCallRepository;
 import ru.mt.data.inmemory.InMemoryAccountRepository;
 import ru.mt.data.inmemory.InMemoryTransactionRepository;
 import ru.mt.errors.ConfigurationException;
-import ru.mt.utils.Assert;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @Log4j2
 public class Configuration {
@@ -45,11 +45,6 @@ public class Configuration {
             // services
             components.put(AccountService.class, new AccountService());
             components.put(MoneyTransferService.class, new MoneyTransferService());
-
-            if (isRunningTest()) {
-                log.warn("TEST MODE! Some components won't be started!");
-                return;
-            }
 
             // controller start-up only if not a testing
             components.put(MoneyTransferController.class, new MoneyTransferController());
@@ -96,17 +91,12 @@ public class Configuration {
 
     @SuppressWarnings("unchecked")
     public static <T> T getComponent(Class componentClass) throws ConfigurationException {
-        Assert.notNull(componentClass, "Component class is null");
+        Objects.requireNonNull(componentClass, "Component class is null");
 
         var component = components.get(componentClass);
         if (component == null)
             throw new ConfigurationException("Component not found");
 
         return (T) component;
-    }
-
-    private static boolean isRunningTest() {
-        return Arrays.stream(Thread.currentThread().getStackTrace())
-                .anyMatch(element -> element.getClassName().startsWith("org.junit."));
     }
 }

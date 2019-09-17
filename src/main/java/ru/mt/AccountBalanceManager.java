@@ -86,7 +86,7 @@ public class AccountBalanceManager extends Component {
             }
 
         } catch (Throwable e) {
-            var msg = String.format("Call (id = %s) execution failed: %s", call.getId(), e.getMessage());
+            var msg = String.format("Call '%s' execution failed: %s", call.getId(), e.getMessage());
             resultBuilder.errorMessage(msg);
             log.error(msg, e);
         }
@@ -146,7 +146,8 @@ public class AccountBalanceManager extends Component {
         var availableBalance = getAvailableBalance(accountId);
         // если не хватает денег на счете
         if (availableBalance < amount) {
-            return ReservationStatus.DENIED;
+            return ReservationStatus.DENIED.setReason(
+                    String.format("Available balance %s below required %s", availableBalance, amount));
         }
 
         // создаем новое резервирование

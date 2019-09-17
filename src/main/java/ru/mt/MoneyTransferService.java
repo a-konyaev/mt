@@ -6,9 +6,9 @@ import ru.mt.app.Configuration;
 import ru.mt.data.TransactionRepository;
 import ru.mt.domain.Transaction;
 import ru.mt.domain.TransactionStatus;
-import ru.mt.errors.MoneyTransferDeniedException;
 import ru.mt.errors.MoneyTransferException;
-import ru.mt.utils.Assert;
+import ru.mt.errors.MoneyTransferTransactionException;
+import ru.mt.errors.MoneyTransferValidationException;
 import ru.mt.utils.CountdownTimer;
 import ru.mt.utils.Processor;
 
@@ -72,12 +72,12 @@ public class MoneyTransferService extends Component {
         return accountService.createNewAccount();
     }
 
-    public double getAccountBalance(String accountId) {
+    public double getAccountBalance(String accountId) throws MoneyTransferException {
         assertAccountNotEmpty(accountId);
 
         var result = accountService.getAccountBalance(accountId);
         if (result.hasError()) {
-            throw new IllegalStateException("Getting account balance error: " + result.getErrorMessage());
+            throw new MoneyTransferException("Getting account balance error: " + result.getErrorMessage());
         }
 
         return result.getAmount();
@@ -103,7 +103,7 @@ public class MoneyTransferService extends Component {
         assertAccountNotEmpty(accountIdFrom);
         assertAccountNotEmpty(accountIdTo);
         if (accountIdFrom.equals(accountIdTo)) {
-            throw new IllegalArgumentException("From and To accounts must be different");
+            throw new MoneyTransferValidationException("From and To accounts must be different");
         }
         assertAmountPositive(amount);
 
@@ -111,12 +111,16 @@ public class MoneyTransferService extends Component {
         waitTransactionCompleted(transactionId);
     }
 
-    private static void assertAccountNotEmpty(String accountId) {
-        Assert.notEmpty(accountId, "Account id must not be empty");
+    private static void assertAccountNotEmpty(String accountId) throws MoneyTransferValidationException {
+        if (accountId == null || accountId.isEmpty()) {
+            throw new MoneyTransferValidationException("Account id must not be empty");
+        }
     }
 
-    private static void assertAmountPositive(double amount) {
-        Assert.positive(amount, "Amount must be positive! amount: " + amount);
+    private static void assertAmountPositive(double amount) throws MoneyTransferValidationException {
+        if (amount <= 0) {
+            throw new MoneyTransferValidationException("Amount must be positive! amount: " + amount);
+        }
     }
 
     //endregion
@@ -141,10 +145,8 @@ public class MoneyTransferService extends Component {
                 return; // it's alright
 
             case ERROR:
-                throw new MoneyTransferException(transactionId, "Transaction processing failed");
-
             case DENIED:
-                throw new MoneyTransferDeniedException(transactionId);
+                throw new MoneyTransferTransactionException(transactionId, status);
 
             default:
                 throw new IllegalStateException("Unexpected transaction status: " + status);
@@ -176,7 +178,7 @@ public class MoneyTransferService extends Component {
             }
 
             if (timer.isTimeOver()) {
-                throw new RuntimeException("Transaction not completed in an appropriate time: " + transactionId);
+                return TransactionStatus.ERROR.setReason("Transaction not completed in an appropriate time");
             }
         }
 
@@ -230,7 +232,7 @@ public class MoneyTransferService extends Component {
                     break;
 
                 case CANCELLING:
-                    currentStatus = processCANCELLING(transaction);
+                    currentStatus = processCANCELLING(transaction, currentStatus.getReason());
                     break;
 
                 case DONE:
@@ -251,8 +253,7 @@ public class MoneyTransferService extends Component {
                 transaction.getAccountIdFrom(), transaction.getId(), transaction.getAmount());
 
         if (result.hasError()) {
-            //todo: если аккаунт не существует, тут нужно это понять и вернуть статус DENIED
-            return TransactionStatus.ERROR;
+            return TransactionStatus.ERROR.setReason(result.getErrorMessage());
         }
 
         var reservationStatus = result.getReservationStatus();
@@ -262,12 +263,13 @@ public class MoneyTransferService extends Component {
 
             case DENIED:
             case CANCELED:
-                return TransactionStatus.DENIED;
+                return TransactionStatus.DENIED.setReason(reservationStatus.getReason());
 
             case DEBITED:
                 // какой то сбой: деньги по транзакции уже списаны со счета account_from,
                 // но статус транзакции такой, что мы еще не добрались до увеличения счета account_to
-                return TransactionStatus.ERROR;
+                return TransactionStatus.ERROR
+                        .setReason("Unexpected reservation status 'DEBITED' for account 'From' before account 'To' will be credited");
 
             default:
                 throw new IllegalStateException("Unexpected reservation status: " + reservationStatus);
@@ -280,7 +282,7 @@ public class MoneyTransferService extends Component {
 
         if (result.hasError()) {
             // не смогли добавить деньги на счет получателя => нужно отменить резервирование денег на счете отправителя
-            return TransactionStatus.CANCELLING;
+            return TransactionStatus.CANCELLING.setReason(result.getErrorMessage());
         }
 
         return TransactionStatus.ADDED;
@@ -291,21 +293,23 @@ public class MoneyTransferService extends Component {
 
         if (result.hasError()) {
             // не смогли списать ранее зарезервированные деньги
-            return TransactionStatus.ERROR;
+            return TransactionStatus.ERROR.setReason(result.getErrorMessage());
         }
 
         return TransactionStatus.DONE;
     }
 
-    private TransactionStatus processCANCELLING(Transaction transaction) {
+    private TransactionStatus processCANCELLING(Transaction transaction, String reason) {
         var result = accountService.cancelReservedAmount(transaction.getAccountIdFrom(), transaction.getId());
 
         if (result.hasError()) {
             // не смогли отменить ранее зарезервированные деньги
-            return TransactionStatus.ERROR;
+            return TransactionStatus.ERROR.setReason(
+                    String.format("Error while cancelling transaction for reason '%s': %s",
+                    reason, result.getErrorMessage()));
         }
 
-        return TransactionStatus.DENIED;
+        return TransactionStatus.DENIED.setReason(reason);
     }
 
     //endregion

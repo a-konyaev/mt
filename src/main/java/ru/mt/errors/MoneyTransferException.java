@@ -1,18 +1,16 @@
 package ru.mt.errors;
 
-import lombok.Builder;
-
-@Builder
 public class MoneyTransferException extends Exception {
-    private final String transactionId;
-
-    MoneyTransferException(String transactionId) {
+    MoneyTransferException() {
         super();
-        this.transactionId = transactionId;
     }
 
-    public MoneyTransferException(String transactionId, String message) {
+    public MoneyTransferException(String message) {
         super(message);
-        this.transactionId = transactionId;
+    }
+
+    @Override
+    public String toString() {
+        return getMessage();
     }
 }

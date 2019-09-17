@@ -4,8 +4,9 @@ import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import ru.mt.errors.MoneyTransferDeniedException;
 import ru.mt.errors.MoneyTransferException;
+import ru.mt.errors.MoneyTransferTransactionException;
+import ru.mt.errors.MoneyTransferValidationException;
 import ru.mt.utils.RandomUtils;
 
 import java.util.ArrayList;
@@ -29,43 +30,41 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
 
         // empty account id
         Assertions.assertThrows(
-                IllegalArgumentException.class,
+                MoneyTransferValidationException.class,
                 () -> service.transferMoney("", nonExistentAccountId, 1));
         Assertions.assertThrows(
-                IllegalArgumentException.class,
+                MoneyTransferValidationException.class,
                 () -> service.transferMoney(nonExistentAccountId, "", 1));
 
         // same account id
         Assertions.assertThrows(
-                IllegalArgumentException.class,
+                MoneyTransferValidationException.class,
                 () -> service.transferMoney(nonExistentAccountId, nonExistentAccountId, 10));
 
         // not positive amount
         Assertions.assertThrows(
-                IllegalArgumentException.class,
+                MoneyTransferValidationException.class,
                 () -> service.putMoneyIntoAccount(nonExistentAccountId, 0));
         Assertions.assertThrows(
-                IllegalArgumentException.class,
+                MoneyTransferValidationException.class,
                 () -> service.withdrawMoneyFromAccount(nonExistentAccountId, -123.45));
 
         // account does not exist
-        //todo: доработать так, чтобы получать здесь исключение "Счет не найден", а не просто "запрещено"
         Assertions.assertThrows(
-                MoneyTransferDeniedException.class,
+                MoneyTransferTransactionException.class,
                 () -> service.putMoneyIntoAccount(nonExistentAccountId, 10));
-        //todo: здесь сейчас прилетает просто MoneyTransferException, нужно сделать исключение "Счет не найден"
         Assertions.assertThrows(
-                MoneyTransferException.class,
+                MoneyTransferTransactionException.class,
                 () -> service.transferMoney(nonExistentAccountId, existingAccountId, 10));
         Assertions.assertThrows(
-                MoneyTransferDeniedException.class,
+                MoneyTransferTransactionException.class,
                 () -> service.transferMoney(existingAccountId, nonExistentAccountId, 10));
     }
 
     @Test
     void checkAccountNotExist() {
         Assertions.assertThrows(
-                IllegalStateException.class,
+                MoneyTransferException.class,
                 () -> service.getAccountBalance("???"));
     }
 
@@ -84,6 +83,7 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
     }
 
     @Test
+    @SneakyThrows
     void getAccountBalance() {
         var accountId = service.createNewAccount();
         var balance = service.getAccountBalance(accountId);
@@ -122,7 +122,7 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
         service.putMoneyIntoAccount(accountId, 10);
 
         Assertions.assertThrows(
-                MoneyTransferDeniedException.class,
+                MoneyTransferTransactionException.class,
                 () -> service.withdrawMoneyFromAccount(accountId, 11));
     }
 
@@ -148,7 +148,7 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
         var a2 = service.createNewAccount();
 
         Assertions.assertThrows(
-                MoneyTransferDeniedException.class,
+                MoneyTransferTransactionException.class,
                 () -> service.transferMoney(a1, a2, 11));
     }
 
@@ -185,12 +185,14 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
         }
 
         Assertions.assertTrue(
-                finishedLatch.await(300 + COUNT*10, TimeUnit.MILLISECONDS),
+                finishedLatch.await(300 + COUNT * 10, TimeUnit.MILLISECONDS),
                 "Transfer money threads not finishedLatch on time");
         Assertions.assertEquals(0, errorsCount.get());
 
         Assertions.assertEquals(1, service.getAccountBalance(accountFrom));
-        accountToList.forEach(accountTo -> Assertions.assertEquals(1, service.getAccountBalance(accountTo)));
+        for (String accountTo : accountToList) {
+            Assertions.assertEquals(1, service.getAccountBalance(accountTo));
+        }
     }
 
     //todo: сделать эмуляцию долгой транзакции, когда какая то часть денег зарезервирована, но не списана какое то время,

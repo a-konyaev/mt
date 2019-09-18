@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 
 /*
   Отвечает за управление балансом своей пачки счетов,
-  т.е. только этот AccountBalanceManager имеет доступ, причем синхронный, к счетам, за который отвечает.
+  т.е. только этот AccountBalanceManager имеет доступ, причем синхронный, к счетам, за которые отвечает.
  */
 @Log4j2
 public class AccountBalanceManager extends Component {
@@ -162,9 +162,6 @@ public class AccountBalanceManager extends Component {
 
     /**
      * списать ранее зарезервированную сумму со счета
-     *
-     * @param accountId
-     * @param transactionId
      */
     private void debitReservedAmount(String accountId, String transactionId) {
         var reservation = getReservationCheckStatusOK(accountId, transactionId);
@@ -178,9 +175,6 @@ public class AccountBalanceManager extends Component {
 
     /**
      * отменить ранее созданное резервирование суммы
-     *
-     * @param accountId
-     * @param transactionId
      */
     private void cancelReservedAmount(String accountId, String transactionId) {
         getReservationCheckStatusOK(accountId, transactionId);
@@ -207,11 +201,6 @@ public class AccountBalanceManager extends Component {
 
     /**
      * добавить сумму на счет
-     *
-     * @param accountId
-     * @param transactionId
-     * @param amount
-     * @return статус OK/ERROR
      */
     private void addAmount(String accountId, String transactionId, BigDecimal amount) {
         // todo: transactionId не используется, но в будущем можно и пополнение счета фиксировать

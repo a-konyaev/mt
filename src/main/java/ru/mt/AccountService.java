@@ -19,14 +19,18 @@ import java.util.UUID;
 
 /**
  * Сервис, через который выполняются все операции со счетами.
- * <p>
- * Также отвечает за
+ * Также отвечает за:
  * - создание AccountBalanceManager-ов и распределение между ними счетов
  * - перебалансировку AccountBalanceManager-ов в случаях, когда какие то выходят из строя, или наоборот создаются новые
  */
 @Log4j2
 public class AccountService extends Component {
-
+    /**
+     * Кол-во шард/партиций или пачек, на которые распределяются все счета системы.
+     * Каждую пачку счетов будет обрабатывать выделенный экземпляр AccountBalanceManager.
+     * todo: получать значение из параметров или выставлять автоматически = кол-во ядер CPU
+     * но пока =1, т.к. требуется более тщательная проверка тестами.
+     */
     private static final int SHARD_COUNT = 1;
     private final AccountRepository accountRepo;
     private final AccountBalanceCallRepository balanceCallRepo;
@@ -94,10 +98,10 @@ public class AccountService extends Component {
 
     /**
      * Reserve the amount on the account balance
-     *  @param accountId     the account id
+     *
+     * @param accountId     the account id
      * @param transactionId the transaction in which the operation is performed
      * @param amount        amount to reserve
-     * @return
      */
     AccountBalanceCallResult reserveAmount(String accountId, String transactionId, BigDecimal amount) {
         var call = AccountBalanceCall.reserveAmount(accountId, transactionId, amount);
@@ -124,9 +128,6 @@ public class AccountService extends Component {
 
     /**
      * синхронно выполняет "вызов", после чего возвращает результат выполнения
-     *
-     * @param call
-     * @return
      */
     private AccountBalanceCallResult executeCall(AccountBalanceCall call) {
         log.debug("executing the call: " + call);
@@ -147,7 +148,7 @@ public class AccountService extends Component {
     private static final int CALL_RESULT_WAITING_TIMEOUT = 60_000;
 
     private AccountBalanceCallResult waitForCallResult(String callId) {
-        // todo: подумать, как лучше реализовать ожидание, например, через аналог корутин (см. Quasar)
+        // todo: подумать, как лучше реализовать ожидание, например, через аналог корутин (Quasar, Loom)
         // todo: сделать сервис, который проставляет результат "Ошибка" для вызовов, которые так и не были обработаны.
         log.debug("start waiting result for call: " + callId);
 

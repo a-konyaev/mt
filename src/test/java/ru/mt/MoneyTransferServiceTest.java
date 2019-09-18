@@ -183,7 +183,7 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
     @Test
     @SneakyThrows
     void parallelTransferMoneyFromOneAccountToAnother() {
-        final int COUNT = RandomUtils.getRandomInt(10, 100);
+        final int COUNT = RandomUtils.getRandomInt(10, 50);
         var accountFrom = service.createNewAccount();
         service.putMoneyIntoAccount(accountFrom, new BigDecimal(COUNT + 1));
 
@@ -227,7 +227,7 @@ class MoneyTransferServiceTest extends BaseTest<MoneyTransferService> {
     // и в этот момент запросить баланс - увидеть, что он отражает баланс минус зарезервированная сумма.
     // и попробовать перевести сумму равную балансу - должны получить отказ, т.к. не хватит из-за того, что часть зарезервирована
 
-    //todo: проверить, что при кол-ве шард > 1:
-    // 1) один и тот же аккаунт обрабатывается одним и тем же аккайнт-манагером
+    //todo: проверить, что при кол-ве шард аккаунтов > 1:
+    // 1) один и тот же аккаунт обрабатывается одним и тем же AccountBalanceManager-ом
     // 2) а аккаунты из разных шард - разными
 }

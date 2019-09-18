@@ -95,7 +95,8 @@ public class InMemoryAccountRepository extends Component implements AccountRepos
     }
 
     /**
-     * смысл в одном методе - сделать все изменения в одной общей транзакции
+     * смысл в одном методе - сделать все изменения в одной общей транзакции,
+     * что будет актуально для реализации репозитория в БД
      */
     @Override
     public void updateAccountBalanceAndReservationStatus(

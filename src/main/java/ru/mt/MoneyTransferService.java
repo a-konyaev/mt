@@ -13,7 +13,6 @@ import ru.mt.utils.CountdownTimer;
 import ru.mt.utils.Processor;
 
 import java.math.BigDecimal;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -52,7 +51,7 @@ public class MoneyTransferService extends Component {
      * Технический счет для денег, которые выданы в кассе со счета
      */
     private String cashDeskOutAccountId;
-
+    // todo: сделать API для получения баланса тех. счетов.
 
     private void initCashDesk() {
         cashDeskInAccountId = accountService.createNewAccount();
@@ -133,7 +132,7 @@ public class MoneyTransferService extends Component {
      * Максимальное кол-во знаков после запятой для сумм.
      * Значение 2 означает, что разрешены суммы вида N, N.M, N.MM, и запрещены вида N.MM...M, где кол-во M > 2
      */
-    static final int AMOUNT_MAX_SCALE = 2;
+    private static final int AMOUNT_MAX_SCALE = 2;
 
 
     private static void validateAccount(String accountId) throws MoneyTransferValidationException {
@@ -310,7 +309,8 @@ public class MoneyTransferService extends Component {
                 // какой то сбой: деньги по транзакции уже списаны со счета account_from,
                 // но статус транзакции такой, что мы еще не добрались до увеличения счета account_to
                 return TransactionStatus.ERROR
-                        .setReason("Unexpected reservation status 'DEBITED' for account 'From' before account 'To' will be credited");
+                        .setReason("Unexpected reservation status 'DEBITED' for account 'From' " +
+                                "before account 'To' will be credited");
 
             default:
                 throw new IllegalStateException("Unexpected reservation status: " + reservationStatus);
@@ -322,7 +322,8 @@ public class MoneyTransferService extends Component {
                 transaction.getAccountIdTo(), transaction.getId(), transaction.getAmount());
 
         if (result.hasError()) {
-            // не смогли добавить деньги на счет получателя => нужно отменить резервирование денег на счете отправителя
+            // не смогли добавить деньги на счет получателя
+            // => нужно отменить резервирование денег на счете отправителя
             return TransactionStatus.CANCELLING.setReason(result.getErrorMessage());
         }
 

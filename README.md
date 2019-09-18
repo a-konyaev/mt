@@ -5,13 +5,21 @@ Implements money transfers between accounts.
 
 Building & running
 ------------
-Requirements: **Java 11**
-```
-$ git clone https://github.com/a-konyaev/mt.git
-$ cd mt
-$ mvn package
-$ java -jar mt.jar
-```
+Requirements: *Java 11 or higher*
+
+Therefore, if necessary, set JAVA_HOME in JDK v11+ directory, for example: 
+   
+    > set JAVA_HOME=C:\Program Files\Java\jdk-12.0.2\ 
+
+**Building:**
+
+    > git clone https://github.com/a-konyaev/mt.git
+    > cd mt
+    > mvn package
+    
+**Running:**
+
+    > java -jar mt.jar
 
 REST API
 ------------
@@ -54,7 +62,8 @@ Response: ```{"status":"OK"}```
 
 Response: ```{"status":"OK"}```
 
-#####*ERROR response*
+***ERROR response***
+
 If the API method got an error for some reason, the response will contain:
 
 ```{"status":"ERROR","message":"<error reason description>"}```

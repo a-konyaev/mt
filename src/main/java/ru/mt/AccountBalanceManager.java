@@ -8,6 +8,8 @@ import ru.mt.data.AccountRepository;
 import ru.mt.domain.*;
 import ru.mt.utils.Processor;
 
+import java.math.BigDecimal;
+
 /*
   Отвечает за управление балансом своей пачки счетов,
   т.е. только этот AccountBalanceManager имеет доступ, причем синхронный, к счетам, за который отвечает.
@@ -106,18 +108,18 @@ public class AccountBalanceManager extends Component {
      * @param accountId ИД счета
      * @return доступная сумма на балансе с учетом всех зарезервированных средств
      */
-    private double getAvailableBalance(String accountId) {
+    private BigDecimal getAvailableBalance(String accountId) {
         var balance = getAccountBalance(accountId);
 
         var totalReserved = accountRepo.getAllReservationWhereStatusOK(accountId)
                 .stream()
-                .mapToDouble(Reservation::getAmount)
-                .sum();
+                .map(Reservation::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        return balance - totalReserved;
+        return balance.subtract(totalReserved);
     }
 
-    private double getAccountBalance(String accountId) {
+    private BigDecimal getAccountBalance(String accountId) {
         var account = accountRepo.findAccount(accountId);
         if (account == null) {
             throw new IllegalStateException("Account not found: " + accountId);
@@ -134,7 +136,7 @@ public class AccountBalanceManager extends Component {
      * @param amount        сумма денег
      * @return статус резервирования
      */
-    private ReservationStatus reserveAmount(String accountId, String transactionId, double amount) {
+    private ReservationStatus reserveAmount(String accountId, String transactionId, BigDecimal amount) {
         var reservation = accountRepo.findReservation(accountId, transactionId);
 
         // если ранее уже резервировали, то вернем статус этого резервирования
@@ -145,7 +147,7 @@ public class AccountBalanceManager extends Component {
         // получим сумму на счете с учетом всех ранее зарезервированных денег
         var availableBalance = getAvailableBalance(accountId);
         // если не хватает денег на счете
-        if (availableBalance < amount) {
+        if (availableBalance.compareTo(amount) < 0) {
             return ReservationStatus.DENIED.setReason(
                     String.format("Available balance %s below required %s", availableBalance, amount));
         }
@@ -168,7 +170,7 @@ public class AccountBalanceManager extends Component {
         var reservation = getReservationCheckStatusOK(accountId, transactionId);
         var balance = getAccountBalance(accountId);
 
-        var newBalance = balance - reservation.getAmount();
+        var newBalance = balance.subtract(reservation.getAmount());
 
         accountRepo.updateAccountBalanceAndReservationStatus(
                 accountId, transactionId, newBalance, ReservationStatus.DEBITED);
@@ -211,14 +213,14 @@ public class AccountBalanceManager extends Component {
      * @param amount
      * @return статус OK/ERROR
      */
-    private void addAmount(String accountId, String transactionId, double amount) {
+    private void addAmount(String accountId, String transactionId, BigDecimal amount) {
         // todo: transactionId не используется, но в будущем можно и пополнение счета фиксировать
         //  в отдельной таблице с историей изменения баланса счета
 
         // todo: если реализовать функцию блокировки счета, то можно вернуть ошибку.
 
         var balance = getAccountBalance(accountId);
-        var newBalance = balance + amount;
+        var newBalance = balance.add(amount);
         accountRepo.updateAccountBalance(accountId, newBalance);
     }
 

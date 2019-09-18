@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.ToString;
 import ru.mt.utils.TimeUtils;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Getter
@@ -15,7 +16,7 @@ public class AccountBalanceCall {
     private final AccountBalanceCallType callType;
     private final String accountId;
     private final String transactionId;
-    private final Double amount;
+    private final BigDecimal amount;
 
     //region constructors
 
@@ -23,7 +24,7 @@ public class AccountBalanceCall {
             AccountBalanceCallType callType,
             String accountId,
             String transactionId,
-            Double amount) {
+            BigDecimal amount) {
         this.callType = callType;
         this.accountId = accountId;
         this.transactionId = transactionId;
@@ -38,7 +39,7 @@ public class AccountBalanceCall {
                 null);
     }
 
-    public static AccountBalanceCall reserveAmount(String accountId, String transactionId, double amount) {
+    public static AccountBalanceCall reserveAmount(String accountId, String transactionId, BigDecimal amount) {
         return new AccountBalanceCall(
                 AccountBalanceCallType.RESERVE_AMOUNT,
                 accountId,
@@ -62,7 +63,7 @@ public class AccountBalanceCall {
                 null);
     }
 
-    public static AccountBalanceCall addAmount(String accountId, String transactionId, double amount) {
+    public static AccountBalanceCall addAmount(String accountId, String transactionId, BigDecimal amount) {
         return new AccountBalanceCall(
                 AccountBalanceCallType.ADD_AMOUNT,
                 accountId,

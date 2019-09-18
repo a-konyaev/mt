@@ -12,6 +12,8 @@ import ru.mt.errors.MoneyTransferValidationException;
 import ru.mt.utils.CountdownTimer;
 import ru.mt.utils.Processor;
 
+import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -22,11 +24,12 @@ public class MoneyTransferService extends Component {
     private final AccountService accountService;
     private final TransactionRepository transactionRepo;
 
+
     public MoneyTransferService() {
         accountService = Configuration.getComponent(AccountService.class);
         transactionRepo = Configuration.getComponent(TransactionRepository.class);
 
-        initCashDeskAccounts();
+        initCashDesk();
         startTransactionProcessing();
     }
 
@@ -35,6 +38,12 @@ public class MoneyTransferService extends Component {
         stopTransactionProcessing();
     }
 
+    //region cash desk
+
+    /**
+     * Условная сумма денег, которую могут внести в кассу, т.е. сумма денег вне системы (1 квадриллион)
+     */
+    private static final BigDecimal CASH_DESK_INIT_BALANCE = new BigDecimal(1_000_000_000_000_000L);
     /**
      * Технический счет для денег, которые приняты в кассе для зачисления на счет
      */
@@ -44,17 +53,20 @@ public class MoneyTransferService extends Component {
      */
     private String cashDeskOutAccountId;
 
-    private void initCashDeskAccounts() {
+
+    private void initCashDesk() {
         cashDeskInAccountId = accountService.createNewAccount();
         cashDeskOutAccountId = accountService.createNewAccount();
 
         // счет для денег, которые принимаем в кассе, устанавливаем в макс. значение, т.е.
         // не ограничиваем кол-во денег "вне системы"
-        var result = accountService.addAmount(cashDeskInAccountId, null, Double.MAX_VALUE);
+        var result = accountService.addAmount(cashDeskInAccountId, null, CASH_DESK_INIT_BALANCE);
         if (result.hasError()) {
             throw new IllegalStateException("Cash desk accounts initialization error: " + result.getErrorMessage());
         }
     }
+
+    //endregion
 
     //region public API
 
@@ -72,8 +84,8 @@ public class MoneyTransferService extends Component {
         return accountService.createNewAccount();
     }
 
-    public double getAccountBalance(String accountId) throws MoneyTransferException {
-        assertAccountNotEmpty(accountId);
+    public BigDecimal getAccountBalance(String accountId) throws MoneyTransferException {
+        validateAccount(accountId);
 
         var result = accountService.getAccountBalance(accountId);
         if (result.hasError()) {
@@ -83,45 +95,74 @@ public class MoneyTransferService extends Component {
         return result.getAmount();
     }
 
-    public void putMoneyIntoAccount(String accountId, double amount) throws MoneyTransferException {
-        assertAccountNotEmpty(accountId);
-        assertAmountPositive(amount);
+    public void putMoneyIntoAccount(String accountId, BigDecimal amount) throws MoneyTransferException {
+        validateAccount(accountId);
+        validateAmount(amount);
 
         var transactionId = registerNewTransaction(cashDeskInAccountId, accountId, amount);
         waitTransactionCompleted(transactionId);
     }
 
-    public void withdrawMoneyFromAccount(String accountId, double amount) throws MoneyTransferException {
-        assertAccountNotEmpty(accountId);
-        assertAmountPositive(amount);
+    public void withdrawMoneyFromAccount(String accountId, BigDecimal amount) throws MoneyTransferException {
+        validateAccount(accountId);
+        validateAmount(amount);
 
         var transactionId = registerNewTransaction(accountId, cashDeskOutAccountId, amount);
         waitTransactionCompleted(transactionId);
     }
 
-    public void transferMoney(String accountIdFrom, String accountIdTo, double amount) throws MoneyTransferException {
-        assertAccountNotEmpty(accountIdFrom);
-        assertAccountNotEmpty(accountIdTo);
+    public void transferMoney(String accountIdFrom, String accountIdTo, BigDecimal amount) throws MoneyTransferException {
+        validateAccount(accountIdFrom);
+        validateAccount(accountIdTo);
         if (accountIdFrom.equals(accountIdTo)) {
             throw new MoneyTransferValidationException("From and To accounts must be different");
         }
-        assertAmountPositive(amount);
+        validateAmount(amount);
 
         var transactionId = registerNewTransaction(accountIdFrom, accountIdTo, amount);
         waitTransactionCompleted(transactionId);
     }
 
-    private static void assertAccountNotEmpty(String accountId) throws MoneyTransferValidationException {
+    //region validation
+
+    /**
+     * Максимальная сумма денег для обработки в одной транзакции (1 млрд)
+     */
+    static final BigDecimal ONE_TRANSACTION_MAX_AMOUNT = new BigDecimal(1_000_000_000);
+    /**
+     * Максимальное кол-во знаков после запятой для сумм.
+     * Значение 2 означает, что разрешены суммы вида N, N.M, N.MM, и запрещены вида N.MM...M, где кол-во M > 2
+     */
+    static final int AMOUNT_MAX_SCALE = 2;
+
+
+    private static void validateAccount(String accountId) throws MoneyTransferValidationException {
         if (accountId == null || accountId.isEmpty()) {
-            throw new MoneyTransferValidationException("Account id must not be empty");
+            throw new MoneyTransferValidationException("The account id must not be empty");
         }
     }
 
-    private static void assertAmountPositive(double amount) throws MoneyTransferValidationException {
-        if (amount <= 0) {
-            throw new MoneyTransferValidationException("Amount must be positive! amount: " + amount);
+    private static void validateAmount(BigDecimal amount) throws MoneyTransferValidationException {
+        if (amount == null) {
+            throw new MoneyTransferValidationException("The amount must be set");
+        }
+
+        if (BigDecimal.ZERO.compareTo(amount) >= 0) {
+            throw new MoneyTransferValidationException("The amount must be positive; amount: " + amount);
+        }
+
+        if (ONE_TRANSACTION_MAX_AMOUNT.compareTo(amount) < 0) {
+            throw new MoneyTransferValidationException(String.format(
+                    "The amount must be less then or equal to %s; amount: %s", ONE_TRANSACTION_MAX_AMOUNT, amount));
+        }
+
+        if (amount.scale() > AMOUNT_MAX_SCALE) {
+            throw new MoneyTransferValidationException(String.format(
+                    "The amount scale must be less then or equal to %d; scale: %d", AMOUNT_MAX_SCALE, amount.scale()));
         }
     }
+
+    //endregion
 
     //endregion
 
@@ -132,7 +173,7 @@ public class MoneyTransferService extends Component {
      */
     private static final int TRANSACTION_COMPLETE_TIMEOUT = 60_000;
 
-    private String registerNewTransaction(String accountIdFrom, String accountIdTo, double amount) {
+    private String registerNewTransaction(String accountIdFrom, String accountIdTo, BigDecimal amount) {
         var transaction = new Transaction(accountIdFrom, accountIdTo, amount, TransactionStatus.CREATED);
         transactionRepo.saveNewTransaction(transaction);
         return transaction.getId();
@@ -306,7 +347,7 @@ public class MoneyTransferService extends Component {
             // не смогли отменить ранее зарезервированные деньги
             return TransactionStatus.ERROR.setReason(
                     String.format("Error while cancelling transaction for reason '%s': %s",
-                    reason, result.getErrorMessage()));
+                            reason, result.getErrorMessage()));
         }
 
         return TransactionStatus.DENIED.setReason(reason);

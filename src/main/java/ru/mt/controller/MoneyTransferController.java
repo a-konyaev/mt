@@ -1,9 +1,9 @@
 package ru.mt.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import lombok.extern.log4j.Log4j2;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.mt.MoneyTransferService;
 import ru.mt.app.Component;
 import ru.mt.app.Configuration;
@@ -12,8 +12,8 @@ import ru.mt.errors.MoneyTransferException;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.util.concurrent.Executors;
 
 /**
@@ -38,7 +38,7 @@ public class MoneyTransferController extends Component {
     }
 
     private void initHttpServer() throws IOException {
-        httpServer = HttpServer.create(new InetSocketAddress(8080), 0);
+        httpServer = HttpServer.create(new InetSocketAddress(8081), 0);
 
         httpServer.createContext("/api/list", exg -> handler(exg, this::getAccountsHandler));
         httpServer.createContext("/api/new", exg -> handler(exg, this::createNewAccountHandler));
@@ -67,16 +67,22 @@ public class MoneyTransferController extends Component {
             var queryParams = QueryParams.fromRawQuery(requestURI.getRawQuery());
 
             MoneyTransferResponse response;
+            int respCode;
             try {
                 response = requestHandler.handle(queryParams);
-            } catch (QueryParamsException | MoneyTransferException e) {
+                respCode = 200; // OK
+            } catch (QueryParamsException e) {
                 response = new ErrorResponse(e.toString());
+                respCode = 400; // Bad Request
+            } catch (MoneyTransferException e) {
+                response = new ErrorResponse(e.toString());
+                respCode = 404; // Not Found
             }
 
-            log.info(String.format("%s --> %s", requestURI, response));
+            log.info(String.format("%s --> [%s] %s", requestURI, respCode, response));
 
             var bytes = objectMapper.writeValueAsBytes(response);
-            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.sendResponseHeaders(respCode, bytes.length);
 
             OutputStream output = exchange.getResponseBody();
             output.write(bytes);
@@ -101,7 +107,7 @@ public class MoneyTransferController extends Component {
 
     private MoneyTransferResponse createNewAccountHandler(QueryParams params) {
         var accountId = moneyTransferService.createNewAccount();
-        return new AccountBalanceResponse(accountId, 0);
+        return new AccountBalanceResponse(accountId, BigDecimal.ZERO);
     }
 
     private MoneyTransferResponse getAccountBalanceHandler(QueryParams params)
@@ -117,7 +123,7 @@ public class MoneyTransferController extends Component {
             throws MoneyTransferException, QueryParamsException {
 
         var accountId = params.getParamString("accountId");
-        var amount = params.getParamDouble("amount");
+        var amount = params.getParamBigDecimal("amount");
         moneyTransferService.putMoneyIntoAccount(accountId, amount);
 
         return new OKResponse();
@@ -127,7 +133,7 @@ public class MoneyTransferController extends Component {
             throws MoneyTransferException, QueryParamsException {
 
         var accountId = params.getParamString("accountId");
-        var amount = params.getParamDouble("amount");
+        var amount = params.getParamBigDecimal("amount");
         moneyTransferService.withdrawMoneyFromAccount(accountId, amount);
 
         return new OKResponse();
@@ -138,7 +144,7 @@ public class MoneyTransferController extends Component {
 
         var accountIdFrom = params.getParamString("accountIdFrom");
         var accountIdTo = params.getParamString("accountIdTo");
-        var amount = params.getParamDouble("amount");
+        var amount = params.getParamBigDecimal("amount");
         moneyTransferService.transferMoney(accountIdFrom, accountIdTo, amount);
 
         return new OKResponse();

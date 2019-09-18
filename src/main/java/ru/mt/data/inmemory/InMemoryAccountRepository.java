@@ -7,6 +7,7 @@ import ru.mt.domain.Account;
 import ru.mt.domain.Reservation;
 import ru.mt.domain.ReservationStatus;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -98,7 +99,7 @@ public class InMemoryAccountRepository extends Component implements AccountRepos
      */
     @Override
     public void updateAccountBalanceAndReservationStatus(
-            String accountId, String transactionId, double balance, ReservationStatus status) {
+            String accountId, String transactionId, BigDecimal balance, ReservationStatus status) {
         var row = getAccountTableRow(accountId);
         var reservation = getReservation(row, transactionId);
         reservation.setStatus(status);
@@ -113,7 +114,7 @@ public class InMemoryAccountRepository extends Component implements AccountRepos
     }
 
     @Override
-    public void updateAccountBalance(String accountId, double balance) {
+    public void updateAccountBalance(String accountId, BigDecimal balance) {
         var row = getAccountTableRow(accountId);
         row.account.setBalance(balance);
     }

@@ -2,8 +2,8 @@ package ru.mt.app;
 
 import lombok.extern.log4j.Log4j2;
 import ru.mt.AccountService;
-import ru.mt.controller.MoneyTransferController;
 import ru.mt.MoneyTransferService;
+import ru.mt.controller.MoneyTransferController;
 import ru.mt.data.AccountBalanceCallRepository;
 import ru.mt.data.AccountRepository;
 import ru.mt.data.TransactionRepository;
@@ -12,7 +12,6 @@ import ru.mt.data.inmemory.InMemoryAccountRepository;
 import ru.mt.data.inmemory.InMemoryTransactionRepository;
 import ru.mt.errors.ConfigurationException;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -26,7 +25,15 @@ public class Configuration {
     }
 
     static void run() {
-        // do nothing
+        // does nothing, but needs to up the application
+    }
+
+    /**
+     * For testing purposes
+     */
+    static void reset() {
+        destroyComponents();
+        initComponents();
     }
 
     /**
@@ -79,14 +86,6 @@ public class Configuration {
         components.clear();
 
         log.info("Destroyed");
-    }
-
-    /**
-     * For testing purposes
-     */
-    public static void reset() {
-        destroyComponents();
-        initComponents();
     }
 
     @SuppressWarnings("unchecked")

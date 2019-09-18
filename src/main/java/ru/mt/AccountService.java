@@ -11,6 +11,7 @@ import ru.mt.domain.AccountBalanceCallResult;
 import ru.mt.utils.CountdownTimer;
 import ru.mt.utils.ShardUtils;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -86,7 +87,7 @@ public class AccountService extends Component {
      * @param transactionId the transaction in which the operation is performed
      * @param amount        amount by which the balance will be increased
      */
-    AccountBalanceCallResult addAmount(String accountId, String transactionId, double amount) {
+    AccountBalanceCallResult addAmount(String accountId, String transactionId, BigDecimal amount) {
         var call = AccountBalanceCall.addAmount(accountId, transactionId, amount);
         return executeCall(call);
     }
@@ -98,7 +99,7 @@ public class AccountService extends Component {
      * @param amount        amount to reserve
      * @return
      */
-    AccountBalanceCallResult reserveAmount(String accountId, String transactionId, double amount) {
+    AccountBalanceCallResult reserveAmount(String accountId, String transactionId, BigDecimal amount) {
         var call = AccountBalanceCall.reserveAmount(accountId, transactionId, amount);
         return executeCall(call);
     }

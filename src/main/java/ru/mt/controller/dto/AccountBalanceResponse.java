@@ -2,12 +2,14 @@ package ru.mt.controller.dto;
 
 import lombok.Getter;
 
+import java.math.BigDecimal;
+
 @Getter
 public class AccountBalanceResponse extends MoneyTransferResponse {
     private final String accountId;
-    private final double balance;
+    private final BigDecimal balance;
 
-    public AccountBalanceResponse(String accountId, double balance) {
+    public AccountBalanceResponse(String accountId, BigDecimal balance) {
         super(ResponseStatus.OK);
 
         this.accountId = accountId;

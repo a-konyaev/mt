@@ -2,6 +2,7 @@ package ru.mt.controller;
 
 import ru.mt.utils.ApiUtils;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +40,16 @@ class QueryParams {
             return Double.parseDouble(value);
         } catch (NumberFormatException e) {
             throw getConvertException(paramName, value, "Double");
+        }
+    }
+
+    BigDecimal getParamBigDecimal(String paramName) throws QueryParamsException {
+        var value = getParamString(paramName);
+
+        try {
+            return new BigDecimal(value.replace(',', '.'));
+        } catch (NumberFormatException e) {
+            throw getConvertException(paramName, value, "BigDecimal");
         }
     }
 

@@ -4,6 +4,7 @@ import ru.mt.domain.Account;
 import ru.mt.domain.Reservation;
 import ru.mt.domain.ReservationStatus;
 
+import java.math.BigDecimal;
 import java.util.Set;
 
 /**
@@ -24,9 +25,9 @@ public interface AccountRepository {
     Set<Reservation> getAllReservationWhereStatusOK(String accountId);
 
     void updateAccountBalanceAndReservationStatus(
-            String accountId, String transactionId, double balance, ReservationStatus status);
+            String accountId, String transactionId, BigDecimal balance, ReservationStatus status);
 
     void updateReservationStatus(String accountId, String transactionId, ReservationStatus status);
 
-    void updateAccountBalance(String accountId, double balance);
+    void updateAccountBalance(String accountId, BigDecimal balance);
 }

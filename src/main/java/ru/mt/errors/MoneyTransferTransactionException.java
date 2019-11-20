@@ -1,7 +1,9 @@
 package ru.mt.errors;
 
+import lombok.Getter;
 import ru.mt.domain.TransactionStatus;
 
+@Getter
 public class MoneyTransferTransactionException extends MoneyTransferException {
     private final String transactionId;
     private final TransactionStatus transactionStatus;

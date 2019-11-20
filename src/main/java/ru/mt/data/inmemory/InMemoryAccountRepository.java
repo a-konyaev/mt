@@ -6,9 +6,14 @@ import ru.mt.data.AccountRepository;
 import ru.mt.domain.Account;
 import ru.mt.domain.Reservation;
 import ru.mt.domain.ReservationStatus;
+import ru.mt.utils.RandomUtils;
+import ru.mt.utils.TestUtils;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -27,6 +32,10 @@ public class InMemoryAccountRepository extends Component implements AccountRepos
     }
 
     private AccountTableRow getAccountTableRow(String accountId) {
+        if (TestUtils.isTestRegime()) {
+            TestUtils.slowThread();
+        }
+
         var row = accountTable.get(accountId);
         if (row == null) {
             throw new IllegalStateException("Account not found: " + accountId);

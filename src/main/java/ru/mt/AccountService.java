@@ -31,7 +31,7 @@ public class AccountService extends Component {
      * todo: получать значение из параметров или выставлять автоматически = кол-во ядер CPU
      * но пока =1, т.к. требуется более тщательная проверка тестами.
      */
-    private static final int SHARD_COUNT = 1;
+    private static final int SHARD_COUNT = 16;
     private final AccountRepository accountRepo;
     private final AccountBalanceCallRepository balanceCallRepo;
     private final List<AccountBalanceManager> accountBalanceManagers = new ArrayList<>();

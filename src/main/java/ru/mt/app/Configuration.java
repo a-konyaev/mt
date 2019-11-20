@@ -1,5 +1,6 @@
 package ru.mt.app;
 
+import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import ru.mt.AccountService;
 import ru.mt.MoneyTransferService;
@@ -98,4 +99,5 @@ public class Configuration {
 
         return (T) component;
     }
+
 }

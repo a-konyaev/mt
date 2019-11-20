@@ -15,4 +15,5 @@ public final class RandomUtils {
     public static double getRandomDouble(double from, double to) {
         return from + RANDOM.nextFloat() * (to - from);
     }
+
 }

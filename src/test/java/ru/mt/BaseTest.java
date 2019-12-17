@@ -13,7 +13,8 @@ abstract class BaseTest<T> {
 
     @BeforeAll
     static void init() {
-        TestUtils.setTestRegime(true);
+        // set to true to slow execution for emulate multi-threading races
+        //TestUtils.setTestRegime(true);
     }
 
     @BeforeEach
